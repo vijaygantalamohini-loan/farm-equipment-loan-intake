@@ -1,0 +1,983 @@
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
+import re
+import httpx
+
+load_dotenv()
+
+# Load credentials from environment
+AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT")
+AZURE_KEY = os.getenv("AZURE_KEY")
+
+if not AZURE_ENDPOINT or not AZURE_KEY:
+    raise ValueError(
+        "Missing AZURE_ENDPOINT and/or AZURE_KEY in environment. "
+        "Please set them in loan-intake-backend/.env"
+    )
+
+app = FastAPI(title="Loan Intake OCR API")
+
+# Allow local frontend during development to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Pydantic models for borrower persistence
+class BorrowerAddress(BaseModel):
+    street: str = None
+    city: str = None
+    state: str = None
+    zip: str = None
+
+class BorrowerInfo(BaseModel):
+    firstName: str = None
+    lastName: str = None
+    dateOfBirth: str = None
+    ssn: str = None
+    email: str = None
+    phone: str = None
+    address: BorrowerAddress = BorrowerAddress()
+    employerName: str = None
+    annualIncome: str = None
+    status: str = None
+
+# In-memory storage (replace with DB in production)
+borrower_storage = {}
+
+
+# ============ Helper functions for parsing OCR results ============
+
+def find_name(lines):
+    """Extract first and last name from OCR lines using various heuristics."""
+    # 1) LAST, FIRST[/MIDDLE] (comma-delimited)
+    for l in lines:
+        s = l.strip()
+        m = re.match(r'^([A-Z][A-Z\s\-\']+),\s*([A-Z][A-Z\s\-\']+)$', s)
+        if m:
+            last = m.group(1).title()
+            first = m.group(2).split()[0].title()
+            return first, last
+
+    # 2) Capitalized words (First Last or First Middle Last)
+    for l in lines:
+        s = l.strip()
+        if re.match(r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$', s):
+            parts = s.split()
+            return parts[0], parts[-1]
+
+    # 3) ALL CAPS lines with 2-3 words (common on many IDs), but exclude common words like "No"
+    for l in lines:
+        s = l.strip()
+        if re.match(r'^[A-Z][A-Z\s\-\']{2,}$', s) and len(s.split()) <= 3 and len(s.split()) >= 2:
+            parts = [p.title() for p in s.split()]
+            # filter out single-letter parts and common short words
+            if all(len(p) > 2 or p.lower() not in ['no', 'or', 'is', 'of'] for p in parts):
+                return parts[0], parts[-1]
+
+    # 4) 'Name: First Last' or similar labels
+    for l in lines:
+        m = re.search(r'Name[:\s]+([A-Za-z]+)\s+([A-Za-z]+)', l, re.I)
+        if m:
+            return m.group(1).title(), m.group(2).title()
+
+    # 5) Fallback: first line containing two words with letters (require 4+ char names for real names)
+    for l in lines:
+        s = l.strip()
+        parts = re.findall(r"[A-Za-z'-]+", s)
+        if len(parts) >= 2 and all(len(p) >= 3 for p in parts[:2]):  # require 3+ char names
+            return parts[0].title(), parts[1].title()
+
+    return None, None
+
+
+def find_dob(lines):
+    """Extract date of birth from OCR lines."""
+    for l in lines:
+        # common formats YYYY-MM-DD (check first)
+        m2 = re.search(r'(\d{4}-\d{2}-\d{2})', l)
+        if m2:
+            return m2.group(1)
+        # MM/DD/YYYY or M/D/YY or MM-DD-YYYY
+        m = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})', l)
+        if m:
+            return m.group(1)
+    return None
+
+
+def find_address(lines):
+    """Extract street, city, state, and zip from OCR lines."""
+    zip_code = None
+
+    # 1) Look for lines like "City, ST 12345" or "City, State 12345"
+    city_state_zip_re = re.compile(r"(?P<city>[A-Za-z .\-']+),\s*(?P<state>[A-Za-z]{2}|[A-Za-z .'-]{3,})\s+(?P<zip>\d{5}(?:-\d{4})?)")
+    city_state_zip_re2 = re.compile(r"(?P<city>[A-Za-z .\-']+)\s+(?P<state>[A-Z]{2})\s+(?P<zip>\d{5}(?:-\d{4})?)")
+    for i, l in enumerate(lines):
+        s = l.strip()
+        m = city_state_zip_re.search(s) or city_state_zip_re2.search(s)
+        if m:
+            zip_code = m.group('zip')
+            city = m.group('city').strip()
+            state = m.group('state').strip()
+            # try to find a street line immediately before this one
+            street = None
+            if i > 0 and not city_state_zip_re.search(lines[i-1]):
+                street = lines[i-1].strip()
+            return street, city, state, zip_code
+
+    # 2) Check adjacent lines: street line followed by "City, ST ZIP"
+    for i in range(len(lines)-1):
+        next_line = lines[i+1].strip()
+        m = city_state_zip_re.search(next_line) or city_state_zip_re2.search(next_line)
+        if m:
+            street = lines[i].strip()
+            zip_code = m.group('zip')
+            city = m.group('city').strip()
+            state = m.group('state').strip()
+            return street, city, state, zip_code
+
+    # 3) Fallback: look for a zip anywhere and return that line as address
+    for l in lines:
+        m = re.search(r"\b(\d{5}(?:-\d{4})?)\b", l)
+        if m:
+            zip_code = m.group(1)
+            # try to split city/state from the same line
+            parts = re.split(r'[,\n]', l)
+            if len(parts) >= 2:
+                city_state = parts[-2].strip()
+                m2 = re.match(r"(?P<city>[A-Za-z .\-']+)\s+(?P<state>[A-Z]{2})", city_state)
+                if m2:
+                    return None, m2.group('city').strip(), m2.group('state').strip(), zip_code
+            return l.replace(zip_code, '').strip(' ,'), None, None, zip_code
+
+    # 4) fallback: look for street keywords
+    for l in lines:
+        if re.search(r'\b(St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Ln|Lane)\b', l, re.I):
+            return l.strip(), None, None, zip_code
+
+    return None, None, None, None
+
+
+# ============ FastAPI endpoints ============
+
+
+@app.post("/ocr/id")
+async def ocr_id(file: UploadFile = File(...)):
+    image_data = await file.read()
+
+    headers = {
+        "Ocp-Apim-Subscription-Key": AZURE_KEY,
+        "Content-Type": "application/octet-stream"
+    }
+    ocr_url = AZURE_ENDPOINT.rstrip("/") + "/vision/v3.2/ocr?language=en&detectOrientation=true"
+
+    # Use an async HTTP client so we don't block the FastAPI event loop.
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(ocr_url, headers=headers, content=image_data)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Error contacting CV service: {e}")
+
+    # If CV service returns non-JSON or an error status, surface a useful message
+    if resp.status_code >= 400:
+        try:
+            err = resp.json()
+        except Exception:
+            err = resp.text
+        raise HTTPException(status_code=502, detail={"cv_error": err})
+
+    try:
+        result = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Invalid JSON from CV service: {e}")
+
+    extracted_text = []
+    for region in result.get("regions", []):
+        for line in region.get("lines", []):
+            text = " ".join([w.get("text", "") for w in line.get("words", [])])
+            if text:
+                extracted_text.append(text)
+
+    # Fallback: try newer OCR keys if service returned different structure
+    if not extracted_text and isinstance(result, dict):
+        # Some APIs return 'readResults' or 'analyzeResult'
+        read_results = result.get("recognitionResults") or result.get("readResults") or result.get("analyzeResult", {}).get("readResults")
+        if read_results:
+            for page in read_results:
+                for line in page.get("lines", []):
+                    t = line.get("text")
+                    if t:
+                        extracted_text.append(t)
+
+    # Parse structured values using helper functions
+    first_name, last_name = find_name(extracted_text)
+    date_of_birth = find_dob(extracted_text)
+    street, city, state, zip_code = find_address(extracted_text)
+
+    return {
+        "rawText": extracted_text,
+        "firstName": first_name,
+        "lastName": last_name,
+        "dateOfBirth": date_of_birth,
+        "street": street,
+        "city": city,
+        "state": state,
+        "zip": zip_code,
+    }
+
+
+@app.post("/ocr/asset")
+async def ocr_asset(file: UploadFile = File(...)):
+    """OCR for equipment/asset invoices or serial plates to extract make, model, year, serial number."""
+    import sys
+    print(f"\n[OCR ASSET] Request received! File: {file.filename}, Content-Type: {file.content_type}", file=sys.stderr, flush=True)
+    
+    image_data = await file.read()
+    print(f"[OCR ASSET] Image size: {len(image_data)} bytes", file=sys.stderr, flush=True)
+
+    headers = {
+        "Ocp-Apim-Subscription-Key": AZURE_KEY,
+        "Content-Type": "application/octet-stream"
+    }
+    ocr_url = AZURE_ENDPOINT.rstrip("/") + "/vision/v3.2/ocr?language=en&detectOrientation=true"
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(ocr_url, headers=headers, content=image_data)
+        if response.status_code != 200:
+            detail = {"cv_error": response.json()}
+            raise HTTPException(status_code=response.status_code, detail=detail)
+        result = response.json()
+
+    # Extract text lines
+    extracted_text = []
+    for region in result.get("regions", []):
+        for line in region.get("lines", []):
+            text = " ".join([w.get("text", "") for w in line.get("words", [])])
+            if text:
+                extracted_text.append(text)
+
+    # Parse asset fields - search ENTIRE document for these fields
+    make = None
+    manufacturer = None
+    model = None
+    year = None
+    serialNumber = None
+    
+    # Join all text for comprehensive pattern matching
+    full_text = " ".join(extracted_text)
+    
+    import sys
+    print(f"\n[OCR DEBUG] ===== INVOICE PARSING =====", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] Total lines: {len(extracted_text)}", file=sys.stderr, flush=True)
+    
+    # MANUFACTURER/MAKE - Search entire document
+    # Try multiple patterns in order of specificity
+    make_patterns = [
+        r'\b(?:Make|Manufacturer|Brand|Mfg)[\s:=\-#]+([A-Za-z0-9\s&\-]+?)(?:\s+(?:Model|Year|Serial|SN|\d{4})|$)',  # With label
+        r'\b(John\s*Deere|Case\s*IH|New\s*Holland|Kubota|Massey\s*Ferguson|Fendt|Claas|Deutz[\-\s]?Fahr)\b',  # Known brands
+    ]
+    for pattern in make_patterns:
+        make_match = re.search(pattern, full_text, re.I)
+        if make_match:
+            make = make_match.group(1).strip()
+            make = re.sub(r'\s+', ' ', make)  # Clean whitespace
+            if len(make) > 3 and len(make) < 50:  # Reasonable length
+                print(f"[OCR DEBUG] ✓ Found make: '{make}'", file=sys.stderr, flush=True)
+                break
+    
+    # MODEL - Search entire document
+    model_patterns = [
+        r'\b(?:Model|Type)[\s:=\-#]+([A-Za-z0-9\s\-/]+?)(?:\s+(?:Year|Serial|SN|\d{4})|$)',  # With label
+        r'\b([A-Z]{1,2}\d{3,5}[A-Z]?)\b',  # Pattern like "6420", "MX340"
+    ]
+    for pattern in model_patterns:
+        model_match = re.search(pattern, full_text, re.I)
+        if model_match:
+            model = model_match.group(1).strip()
+            model = re.sub(r'\s+', ' ', model)
+            if len(model) > 1 and len(model) < 40:  # Reasonable length
+                print(f"[OCR DEBUG] ✓ Found model: '{model}'", file=sys.stderr, flush=True)
+                break
+    
+    # YEAR - Search entire document for any 4-digit year
+    year_patterns = [
+        r'\b(?:Year|Yr|Model\s*Year|Mfg\.?\s*Year)[\s:=\-#]+((?:19|20)\d{2})\b',  # With label
+        r'\b(20[0-2]\d)\b',  # 2000-2029
+        r'\b(19[89]\d)\b',   # 1980-1999
+    ]
+    for pattern in year_patterns:
+        year_match = re.search(pattern, full_text, re.I)
+        if year_match:
+            year = year_match.group(1)
+            print(f"[OCR DEBUG] ✓ Found year: '{year}'", file=sys.stderr, flush=True)
+            break
+    
+    # SERIAL NUMBER - Search entire document
+    serial_patterns = [
+        r'\b(?:Serial\s*No?\.?|S/N|SN|Serial\s*#|Unit\s*No\.?)[\s:=\-#]+([A-Z0-9\-/]{6,})\b',  # With label, min 6 chars
+        r'\b([A-Z]{2,4}\d{6,})\b',  # Pattern like "ABC123456"
+        r'\b(\d{6,}[A-Z]{2,4})\b',  # Pattern like "123456ABC"
+        r'\b([A-Z]\d{6,})\b',       # Pattern like "A123456"
+    ]
+    for pattern in serial_patterns:
+        serial_match = re.search(pattern, full_text, re.I)
+        if serial_match:
+            serialNumber = serial_match.group(1).strip()
+            if len(serialNumber) >= 6 and len(serialNumber) <= 40:  # Reasonable serial length
+                print(f"[OCR DEBUG] ✓ Found serial: '{serialNumber}'", file=sys.stderr, flush=True)
+                break
+    
+    print(f"\n[OCR DEBUG] ===== FINAL RESULTS =====", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] Make: '{make}'", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] Model: '{model}'", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] Year: '{year}'", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] Serial: '{serialNumber}'", file=sys.stderr, flush=True)
+    print(f"[OCR DEBUG] ========================\n", file=sys.stderr, flush=True)
+    
+    # Check image quality based on OCR output
+    quality_warning = None
+    if full_text:
+        # Count readable characters (letters and numbers) vs total
+        readable_chars = sum(c.isalnum() or c.isspace() for c in full_text)
+        total_chars = len(full_text)
+        readable_ratio = readable_chars / total_chars if total_chars > 0 else 0
+        
+        # Count actual words (2+ letters)
+        words = re.findall(r'\b[A-Za-z]{2,}\b', full_text)
+        word_count = len(words)
+        
+        # Poor quality indicators
+        if readable_ratio < 0.7 or word_count < 5:
+            quality_warning = "poor_quality"
+            print(f"[OCR DEBUG] ⚠️ Poor image quality detected! Readable: {readable_ratio:.1%}, Words: {word_count}", file=sys.stderr, flush=True)
+        elif not make and not model and not year and not serialNumber:
+            quality_warning = "no_data_found"
+            print(f"[OCR DEBUG] ⚠️ No equipment data found in OCR text", file=sys.stderr, flush=True)
+
+    return {
+        "rawText": extracted_text,
+        "qualityWarning": quality_warning,
+        "asset": {
+            "make": make,
+            "manufacturer": manufacturer or make,
+            "model": model,
+            "year": year,
+            "serialNumber": serialNumber,
+            "valueEstimate": None
+        }
+    }
+
+
+def decode_john_deere_serial(serial: str):
+    """Decode John Deere serial number to extract year and model info."""
+    # John Deere format: Position 10 = model year
+    # Example: 1M06420PXXY123456 - position 10 is 'X' (year code)
+    # Year codes cycle: I, O, Q are skipped
+    year_codes = {'A':'2010','B':'2011','C':'2012','D':'2013','E':'2014','F':'2015','G':'2016',
+                  'H':'2017','J':'2018','K':'2019','L':'2020','M':'2021','N':'2022','P':'2023',
+                  'R':'2024','S':'2025','T':'2026','U':'2027','V':'2028','W':'2029','X':'2030',
+                  'Y':'2031','0':'2000','1':'2001','2':'2002','3':'2003','4':'2004','5':'2005',
+                  '6':'2006','7':'2007','8':'2008','9':'2009'}
+    
+    year = None
+    if len(serial) >= 10:
+        year_char = serial[9] if len(serial) > 9 else None
+        decoded_year = year_codes.get(year_char)
+        
+        # Validate year - if it's more than 1 year in the future, it's likely a recycled code
+        # meaning it's from the previous cycle (subtract 30 years)
+        if decoded_year:
+            year_int = int(decoded_year)
+            current_year = 2025  # Or use datetime.datetime.now().year for dynamic
+            if year_int > current_year + 1:
+                # Year code has cycled - likely from previous cycle
+                year_int -= 30
+            year = str(year_int)
+    
+    # Try to extract model from prefix (e.g., 1M06420 suggests 6420 model)
+    model_match = re.search(r'[0-9]{4}', serial[:7])
+    model = model_match.group(0) if model_match else None
+    
+    return {"year": year, "model": model}
+
+def decode_case_ih_serial(serial: str):
+    """Decode Case IH serial number."""
+    # Case IH format: Various patterns
+    # JJC prefix + digits often encode year in position 4-5
+    # Example: JJC0316262 - positions 3-4 are '03' = 2003
+    year = None
+    model = None
+    
+    if len(serial) >= 5 and serial.startswith(("JJC", "JJA", "JDB", "CBJ", "HAJ")):
+        try:
+            # Try to extract 2-digit year from position 3-4
+            year_digits = serial[3:5]
+            if year_digits.isdigit():
+                year_num = int(year_digits)
+                # Assume 00-40 is 2000-2040, 90-99 is 1990-1999
+                if year_num >= 90:
+                    year = str(1900 + year_num)
+                else:
+                    year = str(2000 + year_num)
+                
+                # Validate year
+                current_year = 2025
+                if int(year) > current_year + 1:
+                    year = str(int(year) - 100)  # Adjust if too far in future
+        except:
+            pass
+    
+    return {"year": year, "model": model}
+
+def decode_new_holland_serial(serial: str):
+    """Decode New Holland serial number."""
+    # New Holland formats:
+    # - NH prefix + numbers
+    # - ZBJF/ZBJE + year code + numbers
+    # - Z + 10+ characters with embedded year
+    year = None
+    model = None
+    
+    # ZBJF/ZBJE format: position 4 is often year code
+    if serial.startswith(("ZBJF", "ZBJE")) and len(serial) >= 5:
+        try:
+            # Position 4 might be year code (A=2010, B=2011, etc.)
+            year_char = serial[4]
+            if year_char.isalpha():
+                # Letters A-Z map to years (similar to John Deere)
+                year_codes = {'A':'2010','B':'2011','C':'2012','D':'2013','E':'2014','F':'2015','G':'2016',
+                              'H':'2017','J':'2018','K':'2019','L':'2020','M':'2021','N':'2022','P':'2023',
+                              'R':'2024','S':'2025','T':'2026'}
+                year = year_codes.get(year_char)
+            elif year_char.isdigit():
+                # Digit 0-9 might be 2010-2019
+                year = str(2010 + int(year_char))
+        except:
+            pass
+    
+    # NH prefix format: try to find 2-digit year in serial
+    elif serial.startswith("NH") and len(serial) >= 8:
+        try:
+            # Look for 2-digit year pattern in positions 2-6
+            for i in range(2, min(6, len(serial)-1)):
+                year_digits = serial[i:i+2]
+                if year_digits.isdigit():
+                    year_num = int(year_digits)
+                    if 90 <= year_num <= 99:
+                        year = str(1900 + year_num)
+                        break
+                    elif 0 <= year_num <= 30:
+                        year = str(2000 + year_num)
+                        break
+        except:
+            pass
+    
+    return {"year": year, "model": model}
+
+def decode_kubota_serial(serial: str):
+    """Decode Kubota serial number."""
+    # Kubota format: Usually starts with model code (letters) + numbers
+    # Example: L4330-12345 or B2650-98765
+    # Year often encoded in first digits after model code
+    year = None
+    model = None
+    
+    # Try to extract model from prefix
+    model_match = re.match(r'^([A-Z]+\d{3,4})', serial)
+    if model_match:
+        model = model_match.group(1)
+    
+    # Try to extract year from position after model code
+    if len(serial) >= 8:
+        try:
+            # Look for 2-digit year pattern
+            for i in range(0, min(8, len(serial)-1)):
+                year_digits = serial[i:i+2]
+                if year_digits.isdigit():
+                    year_num = int(year_digits)
+                    # Kubota tractors: 75-99 = 1975-1999, 00-30 = 2000-2030
+                    if 75 <= year_num <= 99:
+                        year = str(1900 + year_num)
+                        break
+                    elif 0 <= year_num <= 30:
+                        year = str(2000 + year_num)
+                        # Validate year
+                        current_year = 2025
+                        if int(year) > current_year + 1:
+                            # Too far in future, might be misread
+                            year = None
+                        break
+        except:
+            pass
+    
+    return {"year": year, "model": model}
+
+def decode_massey_ferguson_serial(serial: str):
+    """Decode Massey Ferguson serial number."""
+    # Massey Ferguson format: MF prefix or model code + serial
+    # Example: MF7720-12345 or MFGC2300-98765
+    year = None
+    model = None
+    
+    # Try to extract model from prefix
+    if serial.startswith("MF"):
+        model_match = re.match(r'^MF([A-Z]*\d{3,4})', serial)
+        if model_match:
+            model = model_match.group(1)
+    
+    # Look for year in serial (often in middle section)
+    if len(serial) >= 6:
+        try:
+            # Search for 2-digit year pattern
+            for i in range(0, min(10, len(serial)-1)):
+                year_digits = serial[i:i+2]
+                if year_digits.isdigit():
+                    year_num = int(year_digits)
+                    # 80-99 = 1980-1999, 00-30 = 2000-2030
+                    if 80 <= year_num <= 99:
+                        year = str(1900 + year_num)
+                        break
+                    elif 0 <= year_num <= 30:
+                        year = str(2000 + year_num)
+                        break
+        except:
+            pass
+    
+    return {"year": year, "model": model}
+
+def decode_agco_fendt_serial(serial: str):
+    """Decode AGCO/Fendt serial number."""
+    # Fendt format: Often starts with WF (Fendt Farmer) or TF (Fendt Favorit)
+    # AGCO format: AGCO prefix + model/year encoding
+    year = None
+    model = None
+    
+    # Try to extract year from various positions
+    if len(serial) >= 6:
+        try:
+            # Look for 2-digit or 4-digit year
+            # Check for 4-digit year first
+            year_match = re.search(r'(20\d{2})', serial)
+            if year_match:
+                year = year_match.group(1)
+            else:
+                # Look for 2-digit year
+                for i in range(0, min(10, len(serial)-1)):
+                    year_digits = serial[i:i+2]
+                    if year_digits.isdigit():
+                        year_num = int(year_digits)
+                        if 90 <= year_num <= 99:
+                            year = str(1900 + year_num)
+                            break
+                        elif 0 <= year_num <= 30:
+                            year = str(2000 + year_num)
+                            break
+        except:
+            pass
+    
+    return {"year": year, "model": model}
+
+async def lookup_vin(vin: str):
+    """Look up vehicle VIN using free NHTSA API."""
+    try:
+        url = f"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/{vin}?format=json"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get("Results", [])
+                
+                # Extract relevant fields
+                info = {}
+                error_text = None
+                for item in results:
+                    var_name = item.get("Variable")
+                    value = item.get("Value")
+                    
+                    # Track error messages
+                    if var_name == "Error Text":
+                        error_text = value
+                    
+                    # Filter out empty/invalid values
+                    if value and value not in ["Not Applicable", "None", ""]:
+                        if var_name == "Make":
+                            info["make"] = value
+                        elif var_name == "Model":
+                            info["model"] = value
+                        elif var_name == "Model Year":
+                            info["year"] = value
+                        elif var_name == "Vehicle Type":
+                            info["vehicleType"] = value
+                
+                if info.get("make"):
+                    # Add note if NHTSA had incomplete data
+                    note = "Vehicle VIN decoded"
+                    if error_text and "No detailed data" in error_text:
+                        note += " (limited data available from NHTSA)"
+                    return {"found": True, "source": "NHTSA VIN", "note": note, **info}
+    except:
+        pass
+    return None
+
+@app.get("/lookup/serial/{serial_number}")
+async def lookup_serial(serial_number: str):
+    """
+    Look up equipment information by serial number or VIN.
+    Supports: Equipment serials, Vehicle VINs (free NHTSA API)
+    """
+    serial_clean = serial_number.upper().strip()
+    
+    # Mock database - in production, this would call a real equipment database API
+    mock_equipment_db = {
+        "1M06420PXXY123456": {
+            "make": "John Deere",
+            "model": "6420",
+            "year": "2015",
+            "valueEstimate": 75000
+        },
+        "JJC0316262": {
+            "make": "Case IH",
+            "model": "Magnum 340",
+            "year": "2018",
+            "valueEstimate": 185000
+        },
+        "NH123456789": {
+            "make": "New Holland",
+            "model": "T7.315",
+            "year": "2020",
+            "valueEstimate": 195000
+        }
+    }
+    
+    # Try exact match first
+    if serial_clean in mock_equipment_db:
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            **mock_equipment_db[serial_clean]
+        }
+    
+    # Check if it's a VIN (17 characters, alphanumeric)
+    if len(serial_clean) == 17 and serial_clean.isalnum():
+        vin_result = await lookup_vin(serial_clean)
+        if vin_result:
+            return {
+                **vin_result,
+                "serialNumber": serial_clean,
+                "note": "Vehicle VIN decoded using NHTSA database"
+            }
+    
+    # ENHANCED: John Deere pattern decoding
+    if serial_clean.startswith(("1M0", "1RW", "1LV", "1T0")):
+        decoded = decode_john_deere_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "John Deere",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'year' if decoded['year'] else 'pattern'} decoded from John Deere serial number format."
+        }
+    
+    # ENHANCED: Case IH pattern decoding
+    if serial_clean.startswith(("JJC", "JJA", "JDB", "CBJ", "HAJ")):
+        decoded = decode_case_ih_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "Case IH",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'year' if decoded['year'] else 'pattern'} decoded from Case IH serial number format."
+        }
+    
+    # ENHANCED: New Holland pattern decoding
+    if serial_clean.startswith(("NH", "ZBJF", "ZBJE")) or (serial_clean.startswith("Z") and len(serial_clean) > 10):
+        decoded = decode_new_holland_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "New Holland",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'year' if decoded['year'] else 'pattern'} decoded from New Holland serial number format."
+        }
+    
+    # ENHANCED: Massey Ferguson pattern decoding (check BEFORE Kubota to avoid false matches)
+    if serial_clean.startswith(("MF", "MFGC", "MG")):
+        decoded = decode_massey_ferguson_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "Massey Ferguson",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'model/year' if (decoded['model'] or decoded['year']) else 'pattern'} decoded from Massey Ferguson serial number format."
+        }
+    
+    # ENHANCED: AGCO/Fendt pattern decoding (check BEFORE Kubota to avoid false matches)
+    if serial_clean.startswith(("WF", "TF", "AGCO", "FT")):
+        decoded = decode_agco_fendt_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "AGCO/Fendt",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'year' if decoded['year'] else 'pattern'} decoded from AGCO/Fendt serial number format."
+        }
+    
+    # ENHANCED: Kubota pattern decoding (more generic pattern, so check LAST)
+    if re.match(r'^[A-Z]{1,3}\d{3,}', serial_clean) and len(serial_clean) < 15:
+        decoded = decode_kubota_serial(serial_clean)
+        return {
+            "found": True,
+            "serialNumber": serial_clean,
+            "make": "Kubota",
+            "model": decoded["model"] or "Unknown Model",
+            "year": decoded["year"],
+            "valueEstimate": None,
+            "note": f"Make and {'model' if decoded['model'] else 'pattern'} decoded from Kubota serial number format."
+        }
+    
+    # No match found
+    return {
+        "found": False,
+        "serialNumber": serial_number,
+        "message": "Serial number not found in database. Please enter equipment details manually."
+    }
+
+@app.post("/borrower")
+def save_borrower(borrower: BorrowerInfo):
+    """Save borrower information from OCR or manual entry."""
+    borrower_id = "current"  # simplified; in production use UUID or form ID
+    borrower_storage[borrower_id] = borrower.dict()
+    return {"status": "saved", "borrower_id": borrower_id}
+
+
+@app.get("/borrower")
+def get_borrower():
+    """Retrieve saved borrower information."""
+    borrower_id = "current"
+    if borrower_id not in borrower_storage:
+        return {"status": "not_found"}
+    return borrower_storage[borrower_id]
+
+@app.get("/manufacturers")
+async def get_manufacturers():
+    """
+    Returns the list of manufacturers from manufacturers.json
+    """
+    return load_manufacturers()
+
+@app.get("/lookup/naics/{purpose}")
+async def lookup_naics(purpose: str):
+    """
+    Look up NAICS code based on loan purpose.
+    NAICS = North American Industry Classification System
+    """
+    purpose_lower = purpose.lower()
+    
+    # NAICS codes for agricultural equipment and common loan purposes
+    # Expanded mapping with 100+ keywords for comprehensive coverage
+    naics_mapping = {
+        # Agriculture - Crop Production (111000 series)
+        "farm": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "farming": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "crop": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "crops": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "row crop": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "field crop": {"code": "111000", "description": "Crop Production", "sector": "Agriculture"},
+        "grain": {"code": "111100", "description": "Oilseed and Grain Farming", "sector": "Agriculture"},
+        "corn": {"code": "111150", "description": "Corn Farming", "sector": "Agriculture"},
+        "soybean": {"code": "111110", "description": "Soybean Farming", "sector": "Agriculture"},
+        "wheat": {"code": "111140", "description": "Wheat Farming", "sector": "Agriculture"},
+        "oats": {"code": "111191", "description": "Oilseed and Grain Combination Farming", "sector": "Agriculture"},
+        "barley": {"code": "111191", "description": "Oilseed and Grain Combination Farming", "sector": "Agriculture"},
+        "rice": {"code": "111160", "description": "Rice Farming", "sector": "Agriculture"},
+        "vegetable": {"code": "111200", "description": "Vegetable and Melon Farming", "sector": "Agriculture"},
+        "fruit": {"code": "111300", "description": "Fruit and Tree Nut Farming", "sector": "Agriculture"},
+        "orchard": {"code": "111300", "description": "Fruit and Tree Nut Farming", "sector": "Agriculture"},
+        "vineyard": {"code": "111332", "description": "Grape Vineyards", "sector": "Agriculture"},
+        "greenhouse": {"code": "111400", "description": "Greenhouse, Nursery, and Floriculture Production", "sector": "Agriculture"},
+        "nursery": {"code": "111400", "description": "Greenhouse, Nursery, and Floriculture Production", "sector": "Agriculture"},
+        "cotton": {"code": "111920", "description": "Cotton Farming", "sector": "Agriculture"},
+        "hay": {"code": "111940", "description": "Hay Farming", "sector": "Agriculture"},
+        "alfalfa": {"code": "111940", "description": "Hay Farming", "sector": "Agriculture"},
+        "tobacco": {"code": "111910", "description": "Tobacco Farming", "sector": "Agriculture"},
+        "peanut": {"code": "111992", "description": "Peanut Farming", "sector": "Agriculture"},
+        
+        # Animal Production (112000 series)
+        "livestock": {"code": "112000", "description": "Animal Production", "sector": "Agriculture"},
+        "cattle": {"code": "112111", "description": "Beef Cattle Ranching and Farming", "sector": "Agriculture"},
+        "beef": {"code": "112111", "description": "Beef Cattle Ranching and Farming", "sector": "Agriculture"},
+        "ranching": {"code": "112111", "description": "Beef Cattle Ranching and Farming", "sector": "Agriculture"},
+        "ranch": {"code": "112111", "description": "Beef Cattle Ranching and Farming", "sector": "Agriculture"},
+        "dairy": {"code": "112120", "description": "Dairy Cattle and Milk Production", "sector": "Agriculture"},
+        "milk": {"code": "112120", "description": "Dairy Cattle and Milk Production", "sector": "Agriculture"},
+        "hog": {"code": "112210", "description": "Hog and Pig Farming", "sector": "Agriculture"},
+        "pig": {"code": "112210", "description": "Hog and Pig Farming", "sector": "Agriculture"},
+        "swine": {"code": "112210", "description": "Hog and Pig Farming", "sector": "Agriculture"},
+        "poultry": {"code": "112300", "description": "Poultry and Egg Production", "sector": "Agriculture"},
+        "chicken": {"code": "112320", "description": "Broilers and Other Meat Type Chicken Production", "sector": "Agriculture"},
+        "turkey": {"code": "112330", "description": "Turkey Production", "sector": "Agriculture"},
+        "egg": {"code": "112310", "description": "Chicken Egg Production", "sector": "Agriculture"},
+        "sheep": {"code": "112410", "description": "Sheep Farming", "sector": "Agriculture"},
+        "lamb": {"code": "112410", "description": "Sheep Farming", "sector": "Agriculture"},
+        "goat": {"code": "112420", "description": "Goat Farming", "sector": "Agriculture"},
+        "horse": {"code": "112920", "description": "Horse and Other Equine Production", "sector": "Agriculture"},
+        "equine": {"code": "112920", "description": "Horse and Other Equine Production", "sector": "Agriculture"},
+        "aquaculture": {"code": "112511", "description": "Finfish Farming and Fish Hatcheries", "sector": "Agriculture"},
+        "fish farm": {"code": "112511", "description": "Finfish Farming and Fish Hatcheries", "sector": "Agriculture"},
+        "beekeeping": {"code": "112910", "description": "Apiculture", "sector": "Agriculture"},
+        "honey": {"code": "112910", "description": "Apiculture", "sector": "Agriculture"},
+        
+        # Forestry and Logging (113000 series)
+        "forestry": {"code": "113000", "description": "Forestry and Logging", "sector": "Agriculture"},
+        "logging": {"code": "113310", "description": "Logging", "sector": "Agriculture"},
+        "timber": {"code": "113310", "description": "Logging", "sector": "Agriculture"},
+        "wood": {"code": "113310", "description": "Logging", "sector": "Agriculture"},
+        "tree farm": {"code": "113110", "description": "Timber Tract Operations", "sector": "Agriculture"},
+        "lumber": {"code": "113310", "description": "Logging", "sector": "Agriculture"},
+        
+        # Agricultural Support Activities (115000 series)
+        "agricultural": {"code": "115000", "description": "Support Activities for Agriculture and Forestry", "sector": "Agriculture"},
+        "farm support": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "crop services": {"code": "115000", "description": "Support Activities for Agriculture and Forestry", "sector": "Agriculture"},
+        "harvesting": {"code": "115113", "description": "Crop Harvesting, Primarily by Machine", "sector": "Agriculture"},
+        "custom harvest": {"code": "115113", "description": "Crop Harvesting, Primarily by Machine", "sector": "Agriculture"},
+        "plowing": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "planting": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "cultivating": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "spraying": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "fertilizing": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "pest control": {"code": "115112", "description": "Soil Preparation, Planting, and Cultivating", "sector": "Agriculture"},
+        "farm labor": {"code": "115115", "description": "Farm Labor Contractors and Crew Leaders", "sector": "Agriculture"},
+        "farm management": {"code": "115116", "description": "Farm Management Services", "sector": "Agriculture"},
+        
+        # Farm Equipment and Machinery (333111)
+        # Tractor-specific entries (context-specific matches first, then general)
+        "farm tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "agricultural tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "row crop tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "utility tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "compact tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "sub-compact tractor": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "lawn tractor": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "garden tractor": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "riding mower": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "zero turn": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "construction tractor": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "crawler tractor": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "track tractor": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "tractor": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing (General)", "sector": "Manufacturing"},
+        "equipment": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "machinery": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "harvester": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "combine": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "baler": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "planter": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "seeder": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "sprayer": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "spreader": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "cultivator": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "plow": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "disc": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "tillage": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "implement": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "loader": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "skid steer": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "forage": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "mower": {"code": "333112", "description": "Lawn and Garden Tractor and Home Lawn and Garden Equipment Manufacturing", "sector": "Manufacturing"},
+        "tedder": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "rake": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        
+        # Construction Equipment (333120)
+        "construction": {"code": "237000", "description": "Heavy and Civil Engineering Construction", "sector": "Construction"},
+        "excavator": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "excavation": {"code": "238910", "description": "Site Preparation Contractors", "sector": "Construction"},
+        "bulldozer": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "dozer": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "backhoe": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "grader": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "compactor": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "roller": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "scraper": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "earthmoving": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        "land clearing": {"code": "238910", "description": "Site Preparation Contractors", "sector": "Construction"},
+        "grading": {"code": "238910", "description": "Site Preparation Contractors", "sector": "Construction"},
+        "trencher": {"code": "333120", "description": "Construction Machinery Manufacturing", "sector": "Manufacturing"},
+        
+        # Transportation (484000 series)
+        "hauling": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        "trucking": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        "transport": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        "semi": {"code": "484121", "description": "General Freight Trucking, Long-Distance", "sector": "Transportation"},
+        "semi-truck": {"code": "484121", "description": "General Freight Trucking, Long-Distance", "sector": "Transportation"},
+        "trailer": {"code": "484121", "description": "General Freight Trucking, Long-Distance", "sector": "Transportation"},
+        "dump truck": {"code": "484220", "description": "Specialized Freight (except Used Goods) Trucking, Local", "sector": "Transportation"},
+        "grain truck": {"code": "484220", "description": "Specialized Freight (except Used Goods) Trucking, Local", "sector": "Transportation"},
+        "livestock hauling": {"code": "484220", "description": "Specialized Freight (except Used Goods) Trucking, Local", "sector": "Transportation"},
+        
+        # Other Equipment Categories
+        "utility vehicle": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "utv": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "atv": {"code": "336991", "description": "Motorcycle, Bicycle, and Parts Manufacturing", "sector": "Manufacturing"},
+        "all-terrain": {"code": "336991", "description": "Motorcycle, Bicycle, and Parts Manufacturing", "sector": "Manufacturing"},
+        "gator": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "pickup": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        "pickup truck": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        "service truck": {"code": "484000", "description": "Truck Transportation", "sector": "Transportation"},
+        
+        # Irrigation and Water Management
+        "irrigation": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "pivot": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "center pivot": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "water": {"code": "333111", "description": "Farm Machinery and Equipment Manufacturing", "sector": "Manufacturing"},
+        "pump": {"code": "333911", "description": "Pump and Pumping Equipment Manufacturing", "sector": "Manufacturing"},
+        
+        # Dealership and Sales
+        "dealership": {"code": "423820", "description": "Farm and Garden Machinery and Equipment Merchant Wholesalers", "sector": "Wholesale Trade"},
+        "dealer": {"code": "423820", "description": "Farm and Garden Machinery and Equipment Merchant Wholesalers", "sector": "Wholesale Trade"},
+        "sales": {"code": "423820", "description": "Farm and Garden Machinery and Equipment Merchant Wholesalers", "sector": "Wholesale Trade"},
+        "retail": {"code": "444220", "description": "Nursery, Garden Center, and Farm Supply Stores", "sector": "Retail Trade"},
+        "parts": {"code": "423820", "description": "Farm and Garden Machinery and Equipment Merchant Wholesalers", "sector": "Wholesale Trade"},
+        
+        # General Business Operations
+        "business": {"code": "111000", "description": "Crop Production (General)", "sector": "Agriculture"},
+        "working capital": {"code": "111000", "description": "Crop Production (General)", "sector": "Agriculture"},
+        "operations": {"code": "111000", "description": "Crop Production (General)", "sector": "Agriculture"},
+        "expansion": {"code": "111000", "description": "Crop Production (General)", "sector": "Agriculture"},
+        "purchase": {"code": "111000", "description": "Crop Production (General)", "sector": "Agriculture"},
+    }
+    
+    # Find best match
+    matched_code = None
+    for keyword, naics_info in naics_mapping.items():
+        if keyword in purpose_lower:
+            matched_code = naics_info
+            break
+    
+    # Default to general farming if no specific match
+    if not matched_code:
+        matched_code = {"code": "111000", "description": "Crop Production (Default)", "sector": "Agriculture"}
+    
+    return {
+        "found": True,
+        "naics_code": matched_code["code"],
+        "description": matched_code["description"],
+        "sector": matched_code["sector"],
+        "purpose": purpose
+    }
+

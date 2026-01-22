@@ -1,0 +1,112 @@
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+  padding: 20px;
+}
+
+.login-box {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 50px 40px;
+  max-width: 480px;
+  width: 100%;
+}
+
+.login-box h1 {
+  margin: 0 0 10px 0;
+  color: #333;
+  text-align: center;
+  font-size: 32px;
+}
+
+.login-box .subtitle {
+  margin: 0 0 40px 0;
+  color: #666;
+  text-align: center;
+  font-size: 16px;
+}
+
+.azure-login-section {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+.azure-login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  background: white;
+  border: 2px solid #0078d4;
+  color: #0078d4;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.azure-login-button:hover:not(:disabled) {
+  background: #0078d4;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 120, 212, 0.3);
+}
+
+.azure-login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.microsoft-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.security-info {
+  background: #f0f7ff;
+  border-left: 4px solid #0078d4;
+  padding: 20px;
+  border-radius: 6px;
+}
+
+.security-info p {
+  margin: 8px 0;
+  color: #333;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.security-info p:first-child {
+  font-weight: 600;
+  color: #0078d4;
+}
+
+.help-text {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.help-text p {
+  margin: 8px 0;
+}
+
+.help-text strong {
+  color: #333;
+  font-size: 15px;
+}
