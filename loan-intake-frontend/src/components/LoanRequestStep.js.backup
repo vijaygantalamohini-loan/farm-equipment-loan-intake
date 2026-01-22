@@ -1,0 +1,800 @@
+import React, { useState, useRef, useEffect } from "react";
+import manufacturersData from "../data/manufacturers.json";
+import { Html5Qrcode } from "html5-qrcode";
+
+function LoanRequestStep({ onNext, nextStep, prevStep }) {
+  const [loan, setLoan] = useState({
+    amount: "",
+    termMonths: "",
+    purpose: "",
+    assets: [{
+      id: Date.now(),
+      make: "",
+      model: "",
+      year: "",
+      serialNumber: "",
+      valueEstimate: ""
+    }]
+  });
+
+  const [currentAssetIndex, setCurrentAssetIndex] = useState(0);
+  const [modes, setModes] = useState(["manual"]); // Array of modes for each asset
+  const [uploadedImages, setUploadedImages] = useState([null]); // Array of images for each asset
+  const [ocrRawTexts, setOcrRawTexts] = useState([""]); // Array of OCR texts for each asset
+  const [barcodeScanningIndex, setBarcodeScanningIndex] = useState(-1); // Which asset is scanning
+  const [barcodeError, setBarcodeError] = useState("");
+  const html5QrCodeRef = useRef(null);
+  const scannerRef = useRef(null);
+
+  const handleChange = (field, value) => {
+    setLoan(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAssetChange = (assetIndex, field, value) => {
+    setLoan(prev => ({
+      ...prev,
+      assets: prev.assets.map((asset, idx) => 
+        idx === assetIndex ? { ...asset, [field]: value } : asset
+      )
+    }));
+  };
+
+  const addAsset = () => {
+    setLoan(prev => ({
+      ...prev,
+      assets: [...prev.assets, {
+        id: Date.now(),
+        make: "",
+        model: "",
+        year: "",
+        serialNumber: "",
+        valueEstimate: ""
+      }]
+    }));
+    setModes(prev => [...prev, "manual"]);
+    setUploadedImages(prev => [...prev, null]);
+    setOcrRawTexts(prev => [...prev, ""]);
+    setCurrentAssetIndex(loan.assets.length); // Switch to new asset
+  };
+
+  const removeAsset = (assetIndex) => {
+    if (loan.assets.length === 1) {
+      alert("You must have at least one asset.");
+      return;
+    }
+    
+    setLoan(prev => ({
+      ...prev,
+      assets: prev.assets.filter((_, idx) => idx !== assetIndex)
+    }));
+    setModes(prev => prev.filter((_, idx) => idx !== assetIndex));
+    setUploadedImages(prev => prev.filter((_, idx) => idx !== assetIndex));
+    setOcrRawTexts(prev => prev.filter((_, idx) => idx !== assetIndex));
+    
+    // Adjust current index if needed
+    if (currentAssetIndex >= assetIndex && currentAssetIndex > 0) {
+      setCurrentAssetIndex(currentAssetIndex - 1);
+    }
+  };
+
+  // Upload or scan asset image
+  const handleAssetUpload = async (event, assetIndex) => {
+    console.log("=== handleAssetUpload CALLED ===");
+    const file = event.target.files[0];
+    console.log("File selected:", file);
+    if (!file) {
+      console.log("No file selected, returning");
+      return;
+    }
+
+    // Create image preview URL
+    const imageUrl = URL.createObjectURL(file);
+    setUploadedImages(prev => {
+      const newImages = [...prev];
+      newImages[assetIndex] = imageUrl;
+      return newImages;
+    });
+    console.log("Image preview URL created:", imageUrl);
+    
+    // ALWAYS switch to manual mode so user can at least fill form manually
+    setModes(prev => {
+      const newModes = [...prev];
+      newModes[assetIndex] = "manual";
+      return newModes;
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    console.log("FormData created, sending to backend...");
+
+    // Show a loading alert
+    alert("Processing image with OCR... Please wait.");
+
+    try {
+      console.log("Fetching http://localhost:8000/ocr/asset");
+      const response = await fetch("http://localhost:8000/ocr/asset", {
+        method: "POST",
+        body: formData
+      });
+      console.log("Response received:", response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Response not OK:", errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log("Data parsed successfully:", data);
+
+      // Debug logging
+      console.log("=== OCR Asset Response ===");
+      console.log("Full response:", data);
+      console.log("Raw text from OCR:", data.rawText);
+      console.log("Parsed asset data:", data.asset);
+      console.log("Make:", data.asset?.make);
+      console.log("Model:", data.asset?.model);
+      console.log("Year:", data.asset?.year);
+      console.log("Serial Number:", data.asset?.serialNumber);
+
+      // Update state with OCR results - ALWAYS update even if empty to show the form
+      const newAsset = {
+        make: data.asset?.make || data.asset?.manufacturer || "",
+        model: data.asset?.model || "",
+        year: data.asset?.year || "",
+        serialNumber: data.asset?.serialNumber || "",
+        valueEstimate: data.asset?.valueEstimate || ""
+      };
+
+      console.log("Setting asset state to:", newAsset);
+
+      // Store raw OCR text for display
+      setOcrRawTexts(prev => {
+        const newTexts = [...prev];
+        newTexts[assetIndex] = data.rawText.join('\n');
+        return newTexts;
+      });
+
+      setLoan(prev => ({
+        ...prev,
+        assets: prev.assets.map((asset, idx) => 
+          idx === assetIndex ? { ...asset, ...newAsset } : asset
+        )
+      }));
+
+      // ALWAYS switch to manual mode to show the form
+      setModes(prev => {
+        const newModes = [...prev];
+        newModes[assetIndex] = "manual";
+        return newModes;
+      });
+      
+      // Check for quality warnings
+      if (data.qualityWarning === "poor_quality") {
+        alert(`⚠️ POOR IMAGE QUALITY DETECTED\n\n` +
+              `The image is too blurry, low resolution, or has poor lighting.\n\n` +
+              `Please retake the photo:\n` +
+              `• Use good lighting\n` +
+              `• Hold camera steady (no blur)\n` +
+              `• Make sure text is readable\n` +
+              `• Fill frame with document\n\n` +
+              `Enter information manually for now.`);
+        return;
+      }
+      
+      if (data.qualityWarning === "no_data_found") {
+        alert(`⚠️ NO EQUIPMENT DATA FOUND\n\n` +
+              `OCR couldn't find Make, Model, Year, or Serial Number.\n\n` +
+              `Make sure you're uploading:\n` +
+              `• Dealer invoice\n` +
+              `• Bill of sale\n` +
+              `• Equipment specification sheet\n\n` +
+              `Check the yellow box below to see what text was detected.\n` +
+              `Enter information manually.`);
+      }
+      
+      // Show alert with what was found
+      const foundFields = [];
+      if (newAsset.make) foundFields.push("Make");
+      if (newAsset.model) foundFields.push("Model");
+      if (newAsset.year) foundFields.push("Year");
+      if (newAsset.serialNumber) foundFields.push("Serial Number");
+      
+      if (foundFields.length > 0) {
+        alert(`✓ OCR found: ${foundFields.join(", ")}.\n\nPlease verify the fields and complete any remaining information.`);
+      }
+    } catch (err) {
+      console.error("Asset OCR failed - FULL ERROR:", err);
+      console.error("Error name:", err.name);
+      console.error("Error message:", err.message);
+      console.error("Error stack:", err.stack);
+      alert(`Error: ${err.message}\n\nCheck browser console for details. Please enter manually.`);
+      setModes(prev => {
+        const newModes = [...prev];
+        newModes[assetIndex] = "manual";
+        return newModes;
+      });
+    }
+  };
+
+  // Barcode scanning functions
+  const startBarcodeScanner = async (assetIndex) => {
+    setBarcodeError("");
+    setBarcodeScanningIndex(assetIndex);
+    
+    try {
+      const html5QrCode = new Html5Qrcode(`barcode-reader-${assetIndex}`);
+      html5QrCodeRef.current = html5QrCode;
+      
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          console.log("Barcode scanned:", decodedText);
+          handleAssetChange(assetIndex, "serialNumber", decodedText);
+          stopBarcodeScanner();
+          // Trigger lookup after scan
+          lookupSerialNumber(decodedText, assetIndex);
+        },
+        (errorMessage) => {
+          // Ignore continuous scan errors
+        }
+      );
+    } catch (err) {
+      console.error("Barcode scanner error:", err);
+      setBarcodeError(`Failed to start camera: ${err.message}`);
+      setBarcodeScanningIndex(-1);
+    }
+  };
+
+  const stopBarcodeScanner = () => {
+    if (html5QrCodeRef.current) {
+      html5QrCodeRef.current.stop().then(() => {
+        setBarcodeScanningIndex(-1);
+      }).catch((err) => {
+        console.error("Error stopping scanner:", err);
+        setBarcodeScanningIndex(-1);
+      });
+    }
+  };
+
+  const handleBarcodeImageUpload = async (event, assetIndex) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setBarcodeError("");
+    
+    try {
+      const html5QrCode = new Html5Qrcode(`barcode-reader-${assetIndex}`);
+      const result = await html5QrCode.scanFile(file, true);
+      console.log("Barcode from image:", result);
+      handleAssetChange(assetIndex, "serialNumber", result);
+      // Trigger lookup after image scan
+      lookupSerialNumber(result, assetIndex);
+    } catch (err) {
+      console.error("Barcode image scan error:", err);
+      setBarcodeError(`Could not read barcode from image. ${err.message}`);
+      alert(`Failed to read barcode from image.\n\nPlease:\n• Use a clear, well-lit photo\n• Make sure barcode is in focus\n• Or enter serial number manually`);
+    }
+  };
+
+  // Cleanup barcode scanner on unmount
+  useEffect(() => {
+    return () => {
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Auto-lookup equipment info when serial number is entered
+  const lookupSerialNumber = async (serialNum, assetIndex) => {
+    if (!serialNum || serialNum.length < 6) return; // Need at least 6 chars
+    
+    console.log("Looking up serial number:", serialNum);
+    
+    try {
+      const response = await fetch(`http://localhost:8000/lookup/serial/${encodeURIComponent(serialNum)}`);
+      const data = await response.json();
+      
+      console.log("Lookup result:", data);
+      
+      if (data.found) {
+        console.log("Data found - applying to form:", {
+          make: data.make,
+          model: data.model,
+          year: data.year,
+          valueEstimate: data.valueEstimate
+        });
+        
+        // Auto-fill fields with found data - keep serial number in place
+        setLoan(prev => ({
+          ...prev,
+          assets: prev.assets.map((asset, idx) => {
+            if (idx === assetIndex) {
+              return {
+                ...asset,
+                serialNumber: serialNum, // Preserve the serial number
+                make: data.make || asset.make,
+                model: data.model || asset.model,
+                year: data.year || asset.year,
+                valueEstimate: data.valueEstimate || asset.valueEstimate
+              };
+            }
+            return asset;
+          })
+        }));
+        
+        // Show what was found
+        const foundInfo = [];
+        if (data.make) foundInfo.push(`Make: ${data.make}`);
+        if (data.model) foundInfo.push(`Model: ${data.model}`);
+        if (data.year) foundInfo.push(`Year: ${data.year}`);
+        if (data.valueEstimate) foundInfo.push(`Value: $${data.valueEstimate.toLocaleString()}`);
+        
+        if (data.note) {
+          alert(`✓ ${data.note}\n\n${foundInfo.join('\n')}\n\nFields have been auto-filled. Please verify.`);
+        } else {
+          alert(`✓ Equipment found!\n\n${foundInfo.join('\n')}\n\nPlease verify the information.`);
+        }
+      } else {
+        console.log("Serial number not found in database");
+      }
+    } catch (err) {
+      console.error("Serial lookup error:", err);
+      // Silent fail - user can still enter manually
+    }
+  };
+
+  // Handle serial number change with auto-lookup
+  const handleSerialNumberChange = (value, assetIndex) => {
+    handleAssetChange(assetIndex, "serialNumber", value);
+    
+    // Debounce lookup - wait 1 second after user stops typing
+    if (scannerRef.current) clearTimeout(scannerRef.current);
+    scannerRef.current = setTimeout(() => {
+      lookupSerialNumber(value, assetIndex);
+    }, 1000);
+  };
+
+  const handleSubmit = () => {
+    onNext({ loan });
+    nextStep();
+  };
+
+  return (
+    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
+      <h2>Loan Request</h2>
+      <p style={{ color: "#666", marginBottom: "20px" }}>
+        Provide details about the loan and the equipment you're financing.
+      </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
+        <div>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+            Loan Amount ($) *
+          </label>
+          <input
+            type="number"
+            placeholder="50000"
+            value={loan.amount}
+            onChange={e => handleChange("amount", e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+          />
+        </div>
+        <div>
+          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+            Term (months) *
+          </label>
+          <input
+            type="number"
+            placeholder="60"
+            value={loan.termMonths}
+            onChange={e => handleChange("termMonths", e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: "15px" }}>
+        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+          Purpose *
+        </label>
+        <input
+          placeholder="e.g., Purchase tractor for farming operations"
+          value={loan.purpose}
+          onChange={e => handleChange("purpose", e.target.value)}
+          required
+          style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+        />
+      </div>
+
+      <h3 style={{ marginTop: "25px", marginBottom: "15px" }}>
+        Asset Information 
+        <span style={{ fontSize: "14px", fontWeight: "normal", color: "#666", marginLeft: "10px" }}>
+          ({loan.assets.length} asset{loan.assets.length !== 1 ? 's' : ''})
+        </span>
+      </h3>
+
+      {/* Asset tabs */}
+      {loan.assets.length > 1 && (
+        <div style={{ display: "flex", gap: "5px", marginBottom: "20px", flexWrap: "wrap" }}>
+          {loan.assets.map((asset, idx) => (
+            <button
+              key={asset.id}
+              onClick={() => setCurrentAssetIndex(idx)}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                cursor: "pointer",
+                backgroundColor: currentAssetIndex === idx ? "#007bff" : "#f0f0f0",
+                color: currentAssetIndex === idx ? "white" : "black",
+                border: "1px solid #ccc",
+                borderRadius: "4px"
+              }}
+            >
+              Asset {idx + 1}
+              {asset.make && ` - ${asset.make}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Render current asset */}
+      {loan.assets.map((asset, assetIndex) => {
+        if (assetIndex !== currentAssetIndex) return null;
+        
+        const mode = modes[assetIndex] || "manual";
+        const uploadedImage = uploadedImages[assetIndex];
+        const ocrRawText = ocrRawTexts[assetIndex];
+        const barcodeScanning = barcodeScanningIndex === assetIndex;
+
+        return (
+          <div key={asset.id}>
+            {/* Asset header with remove button */}
+            {loan.assets.length > 1 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                <h4 style={{ margin: 0 }}>Asset {assetIndex + 1}</h4>
+                <button
+                  type="button"
+                  onClick={() => removeAsset(assetIndex)}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: "13px",
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  🗑️ Remove Asset
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button 
+                onClick={() => {
+                  setModes(prev => {
+                    const newModes = [...prev];
+                    newModes[assetIndex] = "scan";
+                    return newModes;
+                  });
+                }}
+                style={{ 
+                  padding: "8px 16px", 
+                  fontSize: "14px", 
+                  cursor: "pointer",
+                  backgroundColor: mode === "scan" ? "#007bff" : "#f0f0f0",
+                  color: mode === "scan" ? "white" : "black",
+                  border: "1px solid #ccc"
+                }}
+              >
+                Scan Serial Plate
+              </button>
+              <button 
+                onClick={() => {
+                  setModes(prev => {
+                    const newModes = [...prev];
+                    newModes[assetIndex] = "upload";
+                    return newModes;
+                  });
+                }}
+                style={{ 
+                  padding: "8px 16px", 
+                  fontSize: "14px", 
+                  cursor: "pointer",
+                  backgroundColor: mode === "upload" ? "#007bff" : "#f0f0f0",
+                  color: mode === "upload" ? "white" : "black",
+                  border: "1px solid #ccc"
+                }}
+              >
+                Upload Invoice
+              </button>
+              <button 
+                onClick={() => {
+                  setModes(prev => {
+                    const newModes = [...prev];
+                    newModes[assetIndex] = "manual";
+                    return newModes;
+                  });
+                }}
+                style={{ 
+                  padding: "8px 16px", 
+                  fontSize: "14px", 
+                  cursor: "pointer",
+                  backgroundColor: mode === "manual" ? "#007bff" : "#f0f0f0",
+                  color: mode === "manual" ? "white" : "black",
+                  border: "1px solid #ccc"
+                }}
+              >
+                Enter Manually
+              </button>
+            </div>
+
+            {mode === "scan" && (
+              <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f9f9f9", border: "1px solid #ddd" }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => handleAssetUpload(e, assetIndex)}
+                  style={{ marginBottom: "10px" }}
+                />
+                <p style={{ margin: 0, fontSize: "14px", color: "#666" }}>Take a photo of the equipment serial plate.</p>
+              </div>
+            )}
+
+            {mode === "upload" && (
+              <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f9f9f9", border: "1px solid #ddd" }}>
+                <input type="file" accept="image/*,.pdf" onChange={(e) => handleAssetUpload(e, assetIndex)} style={{ marginBottom: "10px" }} />
+                <p style={{ margin: 0, fontSize: "14px", color: "#666" }}>Upload dealer invoice or screenshot of dealer asset view.</p>
+              </div>
+            )}
+
+            {/* Barcode scanner display */}
+            {barcodeScanning && (
+              <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#e8f5e9", border: "2px solid #4caf50", borderRadius: "4px" }}>
+                <h4 style={{ marginTop: 0, marginBottom: "10px", color: "#2e7d32" }}>📷 Barcode Scanner Active</h4>
+                <div id={`barcode-reader-${assetIndex}`} style={{ width: "100%", maxWidth: "500px", margin: "0 auto" }}></div>
+                <p style={{ marginTop: "10px", fontSize: "13px", color: "#555", textAlign: "center" }}>
+                  Point camera at barcode. It will auto-detect and fill the serial number.
+                </p>
+              </div>
+            )}
+
+            {/* Hidden element needed for barcode file upload */}
+            {!barcodeScanning && <div id={`barcode-reader-${assetIndex}`} style={{ display: "none" }}></div>}
+
+            {/* Display raw OCR text for testing */}
+            {ocrRawText && (
+              <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fffbf0", border: "2px solid #ffa500", borderRadius: "4px" }}>
+                <h4 style={{ marginTop: 0, marginBottom: "10px", color: "#ff8c00" }}>📋 Raw OCR Text (for testing)</h4>
+                <textarea
+                  readOnly
+                  value={ocrRawText}
+                  style={{
+                    width: "100%",
+                    minHeight: "150px",
+                    padding: "10px",
+                    fontSize: "12px",
+                    fontFamily: "monospace",
+                    backgroundColor: "#fff",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    whiteSpace: "pre-wrap"
+                  }}
+                />
+                <p style={{ margin: "10px 0 0 0", fontSize: "12px", color: "#666" }}>
+                  Copy this text to help debug parsing issues.
+                </p>
+              </div>
+            )}
+
+            {/* ALWAYS show the form fields */}
+            <div>
+              <div style={{ marginBottom: "15px" }}>
+                <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+                  Make/Manufacturer *
+                </label>
+                <input
+                  list={`manufacturers-list-${assetIndex}`}
+                  placeholder="Type or select manufacturer"
+                  value={asset.make || ""}
+                  onChange={e => handleAssetChange(assetIndex, "make", e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+                />
+                <datalist id={`manufacturers-list-${assetIndex}`}>
+                  {manufacturersData
+                    .sort((a, b) => a.manufacturer.localeCompare(b.manufacturer))
+                    .map(m => (
+                      <option key={m.manufacturer} value={m.manufacturer} />
+                    ))}
+                </datalist>
+                <small style={{ display: "block", marginTop: "3px", color: "#666", fontSize: "12px" }}>
+                  Type any manufacturer or select from dropdown
+                </small>
+              </div>
+
+              <div style={{ marginBottom: "15px" }}>
+                <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+                  Model *
+                </label>
+                <input
+                  placeholder="e.g., 5075E"
+                  value={asset.model}
+                  onChange={e => handleAssetChange(assetIndex, "model", e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
+                <div>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+                    Year *
+                  </label>
+                  <input
+                    placeholder="2024"
+                    value={asset.year}
+                    onChange={e => handleAssetChange(assetIndex, "year", e.target.value)}
+                    required
+                    style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+                    Serial Number *
+                  </label>
+                  <input
+                    placeholder="Serial Number"
+                    value={asset.serialNumber}
+                    onChange={e => handleSerialNumberChange(e.target.value, assetIndex)}
+                    required
+                    style={{ width: "100%", padding: "8px", fontSize: "14px", marginBottom: "8px" }}
+                  />
+              
+                  
+                  {/* Barcode scanning options */}
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {!barcodeScanning && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startBarcodeScanner(assetIndex)}
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "13px",
+                            backgroundColor: "#28a745",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          📷 Scan Barcode
+                        </button>
+                        <label
+                          style={{
+                            padding: "6px 12px",
+                            fontSize: "13px",
+                            backgroundColor: "#007bff",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            display: "inline-block"
+                          }}
+                        >
+                          📤 Upload Barcode Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleBarcodeImageUpload(e, assetIndex)}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+                      </>
+                    )}
+                    {barcodeScanning && (
+                      <button
+                        type="button"
+                        onClick={stopBarcodeScanner}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "13px",
+                          backgroundColor: "#dc3545",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        ⏹ Stop Scanning
+                      </button>
+                    )}
+                  </div>
+                  
+                  {barcodeError && (
+                    <p style={{ color: "red", fontSize: "12px", marginTop: "5px" }}>
+                      {barcodeError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "15px" }}>
+                <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+                  Estimated Value ($) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="75000"
+                  value={asset.valueEstimate}
+                  onChange={e => handleAssetChange(assetIndex, "valueEstimate", e.target.value)}
+                  required
+                  style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+                />
+              </div>
+            </div>
+
+            {uploadedImage && (
+              <div style={{ marginTop: "20px", marginBottom: "20px" }}>
+                <h4 style={{ marginBottom: "10px" }}>Uploaded Image:</h4>
+                <img 
+                  src={uploadedImage} 
+                  alt="Uploaded asset document" 
+                  style={{ maxWidth: "100%", border: "1px solid #ccc", borderRadius: "4px" }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Add Another Asset button */}
+      <div style={{ marginTop: "20px", marginBottom: "20px" }}>
+        <button
+          type="button"
+          onClick={addAsset}
+          style={{
+            padding: "10px 20px",
+            fontSize: "15px",
+            backgroundColor: "#28a745",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            width: "100%"
+          }}
+        >
+          ➕ Add Another Asset
+        </button>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "30px" }}>
+        <button 
+          onClick={prevStep}
+          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer" }}
+        >
+          Back
+        </button>
+        <button 
+          onClick={handleSubmit}
+          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer", backgroundColor: "#007bff", color: "white", border: "none" }}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default LoanRequestStep;

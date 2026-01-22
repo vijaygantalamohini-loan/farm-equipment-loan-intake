@@ -7,17 +7,30 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "html5-qrcode": "^2.3.8",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "uuid": "^9.0.1",
+    "web-vitals": "^2.1.4",
+    "zod": "^3.23.8"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "npx kill-port 3000 && react-scripts start",
+    "start:3001": "set PORT=3001&& react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:fast": "react-scripts test --watchAll=false",
+    "test:e2e": "playwright test",
+    "test:e2e:api": "playwright test tests/api",
+    "lint": "eslint src --ext .js,.jsx",
+    "lint:ci": "eslint src --ext .js,.jsx --max-warnings=0",
+    "format": "prettier --write \"src/**/*.{js,jsx,css,ts,tsx}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,css,ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
     "eject": "react-scripts eject"
   },
+  "proxy": "http://localhost:8000",
   "eslintConfig": {
     "extends": [
       "react-app",
@@ -35,5 +48,13 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "eslint": "^8.57.1",
+    "eslint-config-react-app": "^7.0.1",
+    "kill-port": "^2.0.1",
+    "prettier": "^3.3.3",
+    "typescript": "^5.7.2"
   }
 }
