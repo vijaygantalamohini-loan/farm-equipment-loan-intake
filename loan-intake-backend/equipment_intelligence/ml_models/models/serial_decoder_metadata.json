@@ -1,0 +1,16 @@
+{
+  "metrics": {
+    "make": {
+      "classes": 38.0,
+      "accuracy": 0.7169811320754716
+    },
+    "model": {
+      "classes": 282.0,
+      "accuracy": 0.3018867924528302
+    },
+    "year": {
+      "classes": 50.0,
+      "accuracy": 0.33962264150943394
+    }
+  }
+}

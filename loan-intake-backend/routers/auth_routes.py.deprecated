@@ -1,0 +1,134 @@
+"""
+Authentication routes for salesperson login/logout
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
+from datetime import timedelta
+
+from database import get_db, Salesperson
+from services.auth_service import (
+    authenticate_salesperson,
+    create_access_token,
+    decode_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
+
+router = APIRouter(prefix="/auth", tags=["authentication"])
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    salesperson: dict
+
+
+class SalespersonInfo(BaseModel):
+    id: int
+    email: str
+    first_name: str
+    last_name: str
+    location_id: int
+    location_name: str
+    vendor_name: str
+
+
+@router.post("/login", response_model=Token)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """
+    Salesperson login endpoint.
+    Returns JWT token and salesperson info.
+    """
+    salesperson = authenticate_salesperson(db, form_data.username, form_data.password)
+    
+    if not salesperson:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": salesperson.email, "salesperson_id": salesperson.id},
+        expires_delta=access_token_expires
+    )
+    
+    # Get location and vendor info
+    location = salesperson.location
+    vendor = location.vendor if location else None
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "salesperson": {
+            "id": salesperson.id,
+            "email": salesperson.email,
+            "first_name": salesperson.first_name,
+            "last_name": salesperson.last_name,
+            "location_id": location.id if location else None,
+            "location_name": location.location_name if location else None,
+            "vendor_name": vendor.name if vendor else None
+        }
+    }
+
+
+async def get_current_salesperson(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Salesperson:
+    """
+    Dependency to get current authenticated salesperson from token.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    payload = decode_access_token(token)
+    if payload is None:
+        raise credentials_exception
+    
+    email: str = payload.get("sub")
+    if email is None:
+        raise credentials_exception
+    
+    salesperson = db.query(Salesperson).filter(
+        Salesperson.email == email,
+        Salesperson.is_active == True
+    ).first()
+    
+    if salesperson is None:
+        raise credentials_exception
+    
+    return salesperson
+
+
+@router.get("/me", response_model=SalespersonInfo)
+async def get_current_user_info(
+    current_salesperson: Salesperson = Depends(get_current_salesperson)
+):
+    """
+    Get current logged-in salesperson info.
+    """
+    location = current_salesperson.location
+    vendor = location.vendor if location else None
+    
+    return {
+        "id": current_salesperson.id,
+        "email": current_salesperson.email,
+        "first_name": current_salesperson.first_name,
+        "last_name": current_salesperson.last_name,
+        "location_id": location.id if location else None,
+        "location_name": location.location_name if location else None,
+        "vendor_name": vendor.name if vendor else None
+    }

@@ -1,0 +1,265 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Farm Equipment Loan Intake" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - button "Dashboard" [ref=e8] [cursor=pointer]
+        - button "New Application" [ref=e9] [cursor=pointer]
+        - button "One-Click Submission" [ref=e10] [cursor=pointer]
+        - button "Lender Dashboard" [ref=e11] [cursor=pointer]
+        - button "Lender Preferences" [ref=e12] [cursor=pointer]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - text: Welcome,
+        - strong [ref=e15]: E2E User
+      - button "Logout" [ref=e16] [cursor=pointer]
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - heading "New Loan Application - Step 1 of 5" [level=2] [ref=e20]
+        - progressbar [ref=e21]
+      - button "Back to Dashboard" [ref=e22] [cursor=pointer]
+    - button "Show Debug" [ref=e24]
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - strong [ref=e28]: "Missing fields:"
+          - generic [ref=e29]: "Borrower: acresOwned, acresLeased, yearsInOperation, farmIncomeLast3Years.0.income, farmIncomeLast3Years.1.income, farmIncomeLast3Years.2.income, existingFarmDebt, personalDebt"
+        - generic [ref=e30]:
+          - heading "Borrower Information" [level=2] [ref=e31]
+          - paragraph [ref=e32]: Scan your ID for quick entry or enter your information manually.
+          - generic [ref=e33]:
+            - generic [ref=e34]: "Finish these borrower details to keep moving:"
+            - list [ref=e35]:
+              - listitem [ref=e36]: Acres Owned
+              - listitem [ref=e37]: Acres Leased
+              - listitem [ref=e38]: Years In Operation
+              - listitem [ref=e39]: Income
+              - listitem [ref=e40]: Existing Farm Debt
+              - listitem [ref=e41]: Personal Debt
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - radio "Individual" [checked] [ref=e44]
+              - text: Individual
+            - generic [ref=e45]:
+              - radio "Business" [ref=e46]
+              - text: Business
+            - generic [ref=e47]:
+              - checkbox "Add co-borrower/guarantor" [ref=e48]
+              - text: Add co-borrower/guarantor
+          - button "Scan ID / Upload Image" [ref=e50] [cursor=pointer]
+          - generic [ref=e51]:
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e54]: First Name *
+                - textbox "First Name" [ref=e55]: Alice
+              - generic [ref=e56]:
+                - generic [ref=e57]: Last Name *
+                - textbox "Last Name" [ref=e58]: Tester
+            - generic [ref=e59]:
+              - generic [ref=e60]:
+                - generic [ref=e61]: Date of Birth *
+                - textbox [ref=e62]: 1990-01-01
+              - generic [ref=e63]:
+                - generic [ref=e64]: SSN *
+                - textbox "123-45-6789" [ref=e65]
+            - generic [ref=e66]:
+              - generic [ref=e67]:
+                - generic [ref=e68]: Email *
+                - textbox "email@example.com" [ref=e69]: alice@example.com
+              - generic [ref=e70]:
+                - generic [ref=e71]: Phone *
+                - textbox "(555) 123-4567" [ref=e72]: 555-111-2222
+            - heading "Address" [level=3] [ref=e73]
+            - generic [ref=e74]:
+              - generic [ref=e75]: Street Address *
+              - textbox "123 Main Street" [ref=e76]: 123 Main St
+            - generic [ref=e77]:
+              - generic [ref=e78]:
+                - generic [ref=e79]: City *
+                - textbox "City" [ref=e80]: Springfield
+              - generic [ref=e81]:
+                - generic [ref=e82]: State *
+                - textbox "ST" [ref=e83]: IL
+              - generic [ref=e84]:
+                - generic [ref=e85]: ZIP Code *
+                - textbox "12345" [ref=e86]: "62704"
+            - heading "Employment" [level=3] [ref=e87]
+            - generic [ref=e88]:
+              - generic [ref=e89]: Employer/Farm Name *
+              - textbox "Employer/Farm Name" [ref=e90]: ACME Farms
+            - generic [ref=e91]:
+              - generic [ref=e92]:
+                - generic [ref=e93]: Annual Income ($) *
+                - spinbutton [ref=e94]: "65000"
+              - generic [ref=e95]:
+                - generic [ref=e96]: Employment Status *
+                - combobox [ref=e97]:
+                  - option "Select Status"
+                  - option "Employed" [selected]
+                  - option "Self-Employed"
+                  - option "Unemployed"
+            - heading "Operational Details" [level=3] [ref=e98]
+            - paragraph [ref=e99]: Share a snapshot of the farm's footprint so lenders understand how the operation runs today.
+            - generic [ref=e100]:
+              - generic [ref=e101]:
+                - generic [ref=e102]: Farm Type
+                - combobox [ref=e103]:
+                  - option "Select farm type" [selected]
+                  - option "Row Crop"
+                  - option "Commodity & Grain"
+                  - option "Vegetable & Specialty Produce"
+                  - option "Orchard & Vineyard"
+                  - option "Livestock (Beef/Sheep/Goat)"
+                  - option "Dairy"
+                  - option "Poultry & Eggs"
+                  - option "Swine"
+                  - option "Aquaculture"
+                  - option "Nursery & Greenhouse"
+                  - option "Mixed Crop-Livestock"
+                  - option "Other"
+                - text: Select the closest match; choose Other to enter a custom type.
+              - generic [ref=e104]:
+                - generic [ref=e105]: Years In Operation
+                - spinbutton [ref=e106]
+                - text: Number of years the farm has been active.
+            - generic [ref=e107]:
+              - generic [ref=e108]:
+                - generic [ref=e109]: Acres Owned
+                - spinbutton [ref=e110]
+              - generic [ref=e111]:
+                - generic [ref=e112]: Acres Leased
+                - spinbutton [ref=e113]
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - generic [ref=e116]: Farm Website
+                - textbox "https://examplefarm.com" [ref=e117]
+                - text: Optional URL that showcases the farm.
+              - generic [ref=e118]:
+                - generic [ref=e119]: Farm Social Media Account
+                - textbox "@samplefarm" [ref=e120]
+                - text: Share the handle that best represents the operation.
+            - generic [ref=e121]:
+              - generic [ref=e122]: Farm Income (Last 3 Years)
+              - text: Capture the most recent three filed years, latest first. Choose “Not filed” if the return is unavailable.
+              - generic [ref=e123]:
+                - generic [ref=e124]:
+                  - generic [ref=e125]: "2025"
+                  - spinbutton [ref=e126]
+                  - generic [ref=e127]:
+                    - checkbox "Not filed" [ref=e128]
+                    - text: Not filed
+                - generic [ref=e129]:
+                  - generic [ref=e130]: "2024"
+                  - spinbutton [ref=e131]
+                  - generic [ref=e132]:
+                    - checkbox "Not filed" [ref=e133]
+                    - text: Not filed
+                - generic [ref=e134]:
+                  - generic [ref=e135]: "2023"
+                  - spinbutton [ref=e136]
+                  - generic [ref=e137]:
+                    - checkbox "Not filed" [ref=e138]
+                    - text: Not filed
+              - text: Leave income blank only when marked as “Not filed”.
+            - generic [ref=e139]:
+              - generic [ref=e140]:
+                - generic [ref=e141]: NAICS Code
+                - textbox "111120" [ref=e142]
+              - generic [ref=e143]:
+                - generic [ref=e144]: Farm Legal Entity
+                - combobox [ref=e145]:
+                  - option "Select legal structure" [selected]
+                  - option "Sole Proprietorship"
+                  - option "General Partnership"
+                  - option "Limited Partnership"
+                  - option "Limited Liability Company (LLC)"
+                  - option "Limited Liability Partnership (LLP)"
+                  - option "S Corporation"
+                  - option "C Corporation"
+                  - option "Cooperative"
+                  - option "Trust"
+                  - option "Estate"
+                  - option "Other"
+            - heading "Credit & Risk Signals" [level=3] [ref=e146]
+            - paragraph [ref=e147]: These optional insights help lenders gauge risk appetite and accelerate underwriting.
+            - generic [ref=e148]:
+              - generic [ref=e149]:
+                - generic [ref=e150]: Soft Credit Pull Consent
+                - combobox [ref=e151]:
+                  - option "Select an option" [selected]
+                  - option "Yes"
+                  - option "No"
+                - text: Indicate consent to retrieve a soft credit profile.
+              - generic [ref=e152]:
+                - generic [ref=e153]: Insurance Status
+                - combobox [ref=e154]:
+                  - option "Select status" [selected]
+                  - option "Active"
+                  - option "Lapsed"
+                  - option "Unknown"
+            - generic [ref=e155]:
+              - generic [ref=e156]:
+                - generic [ref=e157]: Existing Farm Debt ($)
+                - spinbutton [ref=e158]
+              - generic [ref=e159]:
+                - generic [ref=e160]: Personal Debt ($)
+                - spinbutton [ref=e161]
+            - generic [ref=e162]:
+              - generic [ref=e163]:
+                - generic [ref=e164]: Bankruptcy History
+                - combobox [ref=e165]:
+                  - option "Select an option" [selected]
+                  - option "Yes"
+                  - option "No"
+              - generic [ref=e166]:
+                - generic [ref=e167]: Prior Loan Defaults
+                - combobox [ref=e168]:
+                  - option "Select an option" [selected]
+                  - option "Yes"
+                  - option "No"
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - generic [ref=e171]: Prior Repossess Events
+                - combobox [ref=e172]:
+                  - option "Select an option" [selected]
+                  - option "Yes"
+                  - option "No"
+                - text: Capture any repossession activity tied to equipment.
+              - generic [ref=e173]:
+                - generic [ref=e174]: Prior Repossession (Personal)
+                - combobox [ref=e175]:
+                  - option "Select an option" [selected]
+                  - option "Yes"
+                  - option "No"
+            - generic [ref=e176]:
+              - generic [ref=e177]: Tax Lien History
+              - combobox [ref=e178]:
+                - option "Select an option" [selected]
+                - option "Yes"
+                - option "No"
+          - button "Next" [ref=e180] [cursor=pointer]
+      - generic [ref=e181]:
+        - heading "Steps" [level=4] [ref=e182]
+        - generic "Go to Borrower" [ref=e183] [cursor=pointer]:
+          - generic [ref=e184]: 1. Borrower
+          - 'generic "Missing: acresOwned, acresLeased, yearsInOperation, farmIncomeLast3Years.0.income, farmIncomeLast3Years.1.income, farmIncomeLast3Years.2.income, existingFarmDebt, personalDebt" [ref=e185]': Missing (8)
+        - generic "Enable co-borrower on Step 1 to use this step" [ref=e186]:
+          - generic [ref=e187]: 2. Co-Borrower
+          - generic [ref=e188]: Disabled
+        - generic "Go to Dealer" [ref=e189] [cursor=pointer]:
+          - generic [ref=e190]: 3. Dealer
+          - generic [ref=e191]: Ready
+        - generic "Go to Equipment & Deal" [ref=e192] [cursor=pointer]:
+          - generic [ref=e193]: 4. Equipment & Deal
+          - generic [ref=e194]: Ready
+        - generic "Go to Documents" [ref=e195] [cursor=pointer]:
+          - generic [ref=e196]: 5. Documents
+          - generic [ref=e197]: Ready
+        - generic "Go to Confirm" [ref=e198] [cursor=pointer]:
+          - generic [ref=e199]: 6. Confirm
+          - generic [ref=e200]: Not started
+```
