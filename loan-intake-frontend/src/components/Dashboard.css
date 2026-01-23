@@ -1,246 +1,186 @@
 .dashboard-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
+  max-width: 1280px;
+  margin: auto;
+  padding: 32px 24px;
 }
 
-.dashboard-header {
+/* Header */
+.dashboard-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
-.dashboard-header h1 {
+.dashboard-top h1 {
   margin: 0;
-  font-size: 2rem;
-  color: #333;
+  font-size: 22px;
 }
 
-.welcome-text {
+.dashboard-top p {
+  margin: 4px 0 0;
   color: #666;
-  margin: 5px 0 0 0;
 }
 
-.btn-primary {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  font-size: 16px;
-  border-radius: 4px;
-  cursor: pointer;
+/* Buttons */
+.primary-btn {
+  background: #111;
+  color: #fff;
+  border: 1px solid #111;
+  padding: 12px 18px;
+  border-radius: 10px;
   font-weight: 600;
-  transition: background-color 0.3s;
+  cursor: pointer;
 }
 
-.btn-primary:hover {
-  background-color: #45a049;
+.primary-btn:hover {
+  background: #000;
 }
 
-.summary-cards {
+/* Summary */
+.summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   margin-bottom: 40px;
 }
 
 .summary-card {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  border-left: 4px solid #ccc;
-}
-
-.summary-card.total {
-  border-left-color: #2196F3;
-}
-
-.summary-card.in-progress {
-  border-left-color: #FF9800;
-}
-
-.summary-card.submitted {
-  border-left-color: #9C27B0;
-}
-
-.summary-card.funded {
-  border-left-color: #4CAF50;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 20px;
 }
 
 .summary-card h3 {
   margin: 0;
-  font-size: 2.5rem;
-  color: #333;
+  font-size: 26px;
 }
 
 .summary-card p {
-  margin: 8px 0 0 0;
+  margin-top: 6px;
   color: #666;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.applications-section {
+/* Columns */
+.applications-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  gap: 24px;
 }
 
-/* Keep 3 columns on medium screens, drop to 2 on small, then 1 on very small */
-@media (max-width: 992px) {
-  .applications-section {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.column h2 {
+  margin-bottom: 16px;
+  font-size: 16px;
 }
 
-@media (max-width: 640px) {
-  .applications-section {
-    grid-template-columns: 1fr;
-  }
-}
-
-.section-column {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: 400px;
-}
-
-.section-title {
-  margin: 0 0 20px 0;
-  font-size: 1.3rem;
-  padding-bottom: 10px;
-  border-bottom: 3px solid #ddd;
-}
-
-.in-progress-title {
-  border-bottom-color: #FF9800;
-  color: #F57C00;
-}
-
-.submitted-title {
-  border-bottom-color: #9C27B0;
-  color: #7B1FA2;
-}
-
-.funded-title {
-  border-bottom-color: #4CAF50;
-  color: #388E3C;
-}
-
-.applications-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
+/* Cards */
 .application-card {
-  background: white;
-  border-radius: 6px;
-  padding: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
 }
 
 .application-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.08);
 }
 
-.app-header {
+/* Card header */
+.card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #eee;
+  margin-bottom: 16px;
 }
 
-.app-header h4 {
-  margin: 0;
-  font-size: 1rem;
-  color: #333;
+.card-title {
   font-weight: 600;
 }
 
-.status-badge {
-  font-size: 0.75rem;
-  padding: 4px 8px;
-  border-radius: 12px;
+.card-subtitle {
+  display: block;
+  font-size: 13px;
+  color: #777;
+}
+
+/* Status */
+.status-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  border: 1px solid #e5e5e5;
 }
 
-.status-badge.status-in_progress,
-.status-badge.status-draft,
-.status-badge.status-pending {
-  background-color: #FFF3E0;
-  color: #E65100;
-}
-
-.status-badge.status-submitted {
-  background-color: #F3E5F5;
-  color: #6A1B9A;
-}
-
-.status-badge.status-funded {
-  background-color: #E8F5E9;
-  color: #2E7D32;
-}
-
-.app-details {
+/* Details */
+.card-details {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.app-detail-row {
-  font-size: 0.9rem;
-  color: #666;
+.detail-row {
   display: flex;
-  gap: 8px;
+  justify-content: space-between;
+  font-size: 13px;
 }
 
-.app-detail-row strong {
-  color: #333;
-  min-width: 90px;
-}
-
-.empty-message {
-  text-align: center;
-  color: #999;
-  padding: 40px 20px;
-  font-style: italic;
-}
-
-.loading {
-  text-align: center;
-  padding: 60px 20px;
-  font-size: 1.2rem;
+.detail-row span:first-child {
   color: #666;
 }
 
-.error-message {
-  text-align: center;
-  padding: 40px 20px;
-  color: #d32f2f;
+.bold {
+  font-weight: 700;
 }
 
-.error-message button {
-  margin-top: 20px;
-  background-color: #d32f2f;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
+.mono {
+  font-family: monospace;
+}
+
+/* AI */
+.ai-score {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fafafa;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+/* Action */
+.card-action {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 14px;
 }
 
-.error-message button:hover {
-  background-color: #b71c1c;
+.card-action:hover {
+  background: #000;
+}
+
+/* Empty */
+.empty {
+  color: #777;
+  font-size: 13px;
+}
+
+/* Center */
+.centered-message {
+  height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  gap: 16px;
 }

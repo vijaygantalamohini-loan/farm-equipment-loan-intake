@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { formatCurrency } from "../utils/format";
 import { routeApplication } from "../utils/routingEngine";
 
+/* -------------------- DATA (UNCHANGED) -------------------- */
+
 const initialPrefs = {
   minAmount: 25000,
   maxAmount: 100000,
@@ -69,6 +71,8 @@ const SAMPLE_LENDERS = [
   },
 ];
 
+/* -------------------- COMPONENT -------------------- */
+
 function LenderPreferences() {
   const [prefs, setPrefs] = useState(initialPrefs);
 
@@ -81,43 +85,44 @@ function LenderPreferences() {
       const arr = prev[field];
       return {
         ...prev,
-        [field]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value],
+        [field]: arr.includes(value)
+          ? arr.filter(v => v !== value)
+          : [...arr, value],
       };
     });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: Save preferences to backend
     alert("Preferences saved! (not yet wired to backend)");
   };
 
   const previewLoanAmount = useMemo(() => {
     const min = prefs.minAmount || 40000;
     const max = prefs.maxAmount || Math.max(min, 150000);
-    const midpoint = Math.round((min + max) / 2);
-    return Math.min(Math.max(midpoint, min), max);
+    return Math.round((min + max) / 2);
   }, [prefs.minAmount, prefs.maxAmount]);
 
   const previewApplication = useMemo(() => {
     const equipmentTypes = prefs.equipmentTypes.length ? prefs.equipmentTypes : ["Tractor"];
-    const perEquipmentValue = Math.max(15000, Math.round(previewLoanAmount / Math.max(1, equipmentTypes.length)));
-    const equipmentList = equipmentTypes.map((type, index) => ({
-      type,
-      year: 2022,
-      isNew: !type.toLowerCase().includes("used"),
-      serialNumber: `PREVIEW-${index + 1}`,
-      value: perEquipmentValue,
-    }));
-    const downPaymentPercent = (prefs.minDownPaymentPercent ?? 10) / 100;
-    const downPayment = Math.max(5000, Math.min(previewLoanAmount * downPaymentPercent, previewLoanAmount * 0.25));
+    const perEquipmentValue = Math.max(
+      15000,
+      Math.round(previewLoanAmount / equipmentTypes.length)
+    );
+
     return {
       loanAmount: previewLoanAmount,
-      equipmentList,
+      equipmentList: equipmentTypes.map((type, i) => ({
+        type,
+        year: 2022,
+        isNew: true,
+        serialNumber: `PREVIEW-${i + 1}`,
+        value: perEquipmentValue,
+      })),
       borrower: { creditScore: 720, annualIncome: 90000 },
-      dealer: { state: (prefs.states[0] || "IA") },
+      dealer: { state: prefs.states[0] || "IA" },
       loanTermMonths: 72,
-      downPayment,
+      downPayment: previewLoanAmount * (prefs.minDownPaymentPercent / 100),
       naicsCode: prefs.naicsCodes[0] || "1111",
       tradeInPresent: false,
     };
@@ -125,61 +130,88 @@ function LenderPreferences() {
 
   const eligibleLenders = useMemo(() => {
     const matched = routeApplication(previewApplication, SAMPLE_LENDERS);
-    return SAMPLE_LENDERS.filter((lender) => matched.includes(lender.lenderId));
+    return SAMPLE_LENDERS.filter(l => matched.includes(l.lenderId));
   }, [previewApplication]);
 
   return (
-    <div style={{ maxWidth: 600, margin: "40px auto", background: "#fff", borderRadius: 8, boxShadow: "0 2px 8px #eee", padding: 30 }}>
-      <h2>Lender Application Preferences</h2>
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 18 }}>
-          <label style={label}>Loan Amount Range ($):</label><br />
-          <input type="number" value={prefs.minAmount} min={0} max={prefs.maxAmount} onChange={e => handleChange("minAmount", Number(e.target.value))} style={input} />
-          <span style={{ margin: "0 10px" }}>to</span>
-          <input type="number" value={prefs.maxAmount} min={prefs.minAmount} max={500000} onChange={e => handleChange("maxAmount", Number(e.target.value))} style={input} />
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <label style={label}>Equipment Types:</label><br />
-          {allEquipment.map(eq => (
-            <label key={eq} style={checkLabel}>
-              <input type="checkbox" checked={prefs.equipmentTypes.includes(eq)} onChange={() => handleMultiChange("equipmentTypes", eq)} /> {eq}
-            </label>
-          ))}
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <label style={label}>States:</label><br />
-          {allStates.map(st => (
-            <label key={st} style={checkLabel}>
-              <input type="checkbox" checked={prefs.states.includes(st)} onChange={() => handleMultiChange("states", st)} /> {st}
-            </label>
-          ))}
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <label style={label}>NAICS Codes:</label><br />
-          {allNAICS.map(code => (
-            <label key={code} style={checkLabel}>
-              <input type="checkbox" checked={prefs.naicsCodes.includes(code)} onChange={() => handleMultiChange("naicsCodes", code)} /> {code}
-            </label>
-          ))}
-        </div>
-        <button type="submit" style={saveBtn}>Save Preferences</button>
-      </form>
-      <div style={previewBox}>
-        <h3 style={{ marginTop: 0 }}>Routing Preview</h3>
-        <p style={{ margin: "8px 0" }}>Sample loan amount: {formatCurrency(previewApplication.loanAmount)}</p>
-        <p style={{ margin: "8px 0" }}>Dealer state: {previewApplication.dealer.state}</p>
-        <p style={{ margin: "8px 0" }}>NAICS code: {previewApplication.naicsCode}</p>
-        <p style={{ margin: "8px 0" }}>Equipment: {previewApplication.equipmentList.map((eq) => eq.type).join(", ")}</p>
-        <div style={{ marginTop: 12 }}>
-          <strong>Eligible lenders:</strong>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>Lender Preferences</h1>
+        <p style={styles.subtitle}>
+          Control which applications are routed to you based on loan criteria.
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          {/* Loan Amount */}
+          <Section title="Loan Amount Range">
+            <div style={styles.inline}>
+              <input
+                type="number"
+                value={prefs.minAmount}
+                onChange={e => handleChange("minAmount", Number(e.target.value))}
+                style={styles.input}
+              />
+              <span style={styles.muted}>to</span>
+              <input
+                type="number"
+                value={prefs.maxAmount}
+                onChange={e => handleChange("maxAmount", Number(e.target.value))}
+                style={styles.input}
+              />
+            </div>
+          </Section>
+
+          {/* Equipment */}
+          <Section title="Equipment Types">
+            <CheckboxGrid
+              options={allEquipment}
+              selected={prefs.equipmentTypes}
+              onToggle={v => handleMultiChange("equipmentTypes", v)}
+            />
+          </Section>
+
+          {/* States */}
+          <Section title="States">
+            <CheckboxGrid
+              options={allStates}
+              selected={prefs.states}
+              onToggle={v => handleMultiChange("states", v)}
+            />
+          </Section>
+
+          {/* NAICS */}
+          <Section title="NAICS Codes">
+            <CheckboxGrid
+              options={allNAICS}
+              selected={prefs.naicsCodes}
+              onToggle={v => handleMultiChange("naicsCodes", v)}
+            />
+          </Section>
+
+          <button type="submit" style={styles.primaryBtn}>
+            Save Preferences
+          </button>
+        </form>
+      </div>
+
+      {/* Preview */}
+      <div style={styles.preview}>
+        <h3>Routing Preview</h3>
+        <p>Sample loan amount: <strong>{formatCurrency(previewApplication.loanAmount)}</strong></p>
+        <p>Dealer state: <strong>{previewApplication.dealer.state}</strong></p>
+        <p>NAICS code: <strong>{previewApplication.naicsCode}</strong></p>
+        <p>Equipment: <strong>{previewApplication.equipmentList.map(e => e.type).join(", ")}</strong></p>
+
+        <div style={{ marginTop: 16 }}>
+          <strong>Eligible lenders</strong>
           {eligibleLenders.length > 0 ? (
-            <ul style={{ margin: "8px 0 0 16px" }}>
-              {eligibleLenders.map((lender) => (
-                <li key={lender.lenderId}>{lender.displayName || lender.lenderId}</li>
+            <ul style={styles.list}>
+              {eligibleLenders.map(l => (
+                <li key={l.lenderId}>{l.displayName}</li>
               ))}
             </ul>
           ) : (
-            <p style={{ margin: "8px 0 0" }}>No lenders currently match this preview.</p>
+            <p style={styles.muted}>No lenders match this configuration.</p>
           )}
         </div>
       </div>
@@ -187,10 +219,117 @@ function LenderPreferences() {
   );
 }
 
-const label = { fontWeight: 600, fontSize: 15 };
-const input = { width: 90, padding: 6, fontSize: 15, borderRadius: 4, border: "1px solid #ccc" };
-const checkLabel = { marginRight: 18, fontSize: 15 };
-const previewBox = { marginTop: 30, padding: 20, background: "#f7fbff", borderRadius: 8, border: "1px solid #d5e4ff" };
-const saveBtn = { background: "#007bff", color: "white", border: "none", borderRadius: 4, padding: "10px 28px", fontSize: 16, cursor: "pointer", marginTop: 10 };
+/* -------------------- UI HELPERS -------------------- */
+
+function Section({ title, children }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <label style={styles.label}>{title}</label>
+      {children}
+    </div>
+  );
+}
+
+function CheckboxGrid({ options, selected, onToggle }) {
+  return (
+    <div style={styles.grid}>
+      {options.map(opt => (
+        <label key={opt} style={styles.check}>
+          <input
+            type="checkbox"
+            checked={selected.includes(opt)}
+            onChange={() => onToggle(opt)}
+          />
+          {opt}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/* -------------------- STYLES -------------------- */
+
+const styles = {
+  page: {
+    maxWidth: 960,
+    margin: "40px auto",
+    padding: "0 24px",
+  },
+
+  card: {
+    background: "#fff",
+    border: "1px solid #e5e5e5",
+    borderRadius: 20,
+    padding: 32,
+    boxShadow: "0 20px 50px rgba(0,0,0,0.05)",
+  },
+
+  title: { margin: 0, fontSize: 24 },
+  subtitle: { margin: "6px 0 28px", color: "#666" },
+
+  label: {
+    fontWeight: 600,
+    fontSize: 15,
+    display: "block",
+    marginBottom: 10,
+  },
+
+  inline: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  input: {
+    width: 140,
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid #ddd",
+    fontSize: 14,
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+    gap: 12,
+  },
+
+  check: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 14,
+  },
+
+  primaryBtn: {
+    marginTop: 10,
+    padding: "12px 28px",
+    borderRadius: 12,
+    background: "#111",
+    color: "#fff",
+    border: "1px solid #111",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  preview: {
+    marginTop: 32,
+    padding: 24,
+    borderRadius: 16,
+    border: "1px solid #e5e5e5",
+    background: "#fafafa",
+  },
+
+  list: {
+    marginTop: 8,
+    paddingLeft: 18,
+  },
+
+  muted: {
+    color: "#777",
+    fontSize: 14,
+  },
+};
 
 export default LenderPreferences;

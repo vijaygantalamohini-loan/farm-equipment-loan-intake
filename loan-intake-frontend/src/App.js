@@ -12,301 +12,237 @@ import { OneClickSubmissionProvider } from "./components/OneClickSubmission/hook
 import OneClickSubmissionWizard from "./components/OneClickSubmission/OneClickSubmissionWizard";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'application', 'offers', 'lender', 'lenderPrefs', 'oneClick'
-    const handleLenderDashboard = () => {
-      setCurrentView('lender');
-    };
-    const handleLenderPreferences = () => {
-      setCurrentView('lenderPrefs');
-    };
+  const [currentView, setCurrentView] = useState("dashboard");
   const [selectedApplicationId, setSelectedApplicationId] = useState(null);
   const [editingApplicationId, setEditingApplicationId] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // Check URL for token (from Azure AD callback) or load from localStorage
+  const handleLenderDashboard = () => setCurrentView("lender");
+  const handleLenderPreferences = () => setCurrentView("lenderPrefs");
+
   useEffect(() => {
-    // First, check URL for OAuth callback
-    console.log('[App] Mount at URL:', window.location.href);
     const urlAuth = authStorage.getAuthFromUrl();
-    console.log('[App] URL auth present:', !!urlAuth);
-    
+
     if (urlAuth) {
-      // Save and set authentication
-      setNotice('Auth callback detected - signing you in...');
+      setNotice("Signing you in…");
       authStorage.saveAuth(urlAuth.token, urlAuth.user);
-      console.log('[App] Auth saved from URL, token length:', urlAuth.token?.length || 0);
       setToken(urlAuth.token);
       setUser(urlAuth.user);
       setIsAuthenticated(true);
-      
-      // Clean up URL
       authStorage.cleanUrlParams();
-      console.log('[App] URL params cleaned, navigating to root');
-      setTimeout(() => setNotice(null), 4000);
+      setTimeout(() => setNotice(null), 3000);
     } else {
-      // Try loading from localStorage
       const savedAuth = authStorage.loadAuth();
-      console.log('[App] Loaded auth from storage:', !!savedAuth);
-      
       if (savedAuth) {
         setToken(savedAuth.token);
         setUser(savedAuth.user);
         setIsAuthenticated(true);
-        console.log('[App] Auth state set from storage');
-        try {
-          const params = new URLSearchParams(window.location.search);
-          const desiredView = params.get('view');
-          if (desiredView === 'application') {
-            setCurrentView('application');
-          } else if (desiredView === 'offers') {
-            setCurrentView('offers');
-          } else if (desiredView === 'dashboard') {
-            setCurrentView('dashboard');
-          }
-        } catch {}
       }
     }
   }, []);
 
-  // Load full user profile (vendor/location) after auth is established
   useEffect(() => {
     if (!isAuthenticated || !token) return;
     let cancelled = false;
+
     (async () => {
       try {
         const profile = await authAPI.getProfile(token);
-        if (!cancelled && profile && typeof profile === 'object') {
+        if (!cancelled && profile) {
           setUser(prev => ({ ...(prev || {}), ...profile }));
         }
-      } catch (e) {
-        console.error('[App] Failed to load user profile', e);
-      }
+      } catch {}
     })();
-    return () => { cancelled = true; };
-  }, [isAuthenticated, token]);
 
-  const handleLoginSuccess = (authToken, userData) => {
-    authStorage.saveAuth(authToken, userData);
-    setToken(authToken);
-    setUser(userData);
-    setIsAuthenticated(true);
-  };
+    return () => (cancelled = true);
+  }, [isAuthenticated, token]);
 
   const handleLogout = () => {
     authStorage.clearAuth();
     setIsAuthenticated(false);
     setToken(null);
     setUser(null);
-    setCurrentView('dashboard');
+    setCurrentView("dashboard");
   };
 
   const handleStartNewApplication = () => {
-    setEditingApplicationId(null); // Clear any editing state
-    setCurrentView('application');
+    setEditingApplicationId(null);
+    setCurrentView("application");
   };
 
   const handleOneClickSubmission = () => {
     setEditingApplicationId(null);
-    setCurrentView('oneClick');
+    setCurrentView("oneClick");
   };
 
-  const handleEditApplication = (applicationId) => {
-    setEditingApplicationId(applicationId);
-    setCurrentView('application');
+  const handleEditApplication = id => {
+    setEditingApplicationId(id);
+    setCurrentView("application");
   };
 
   const handleBackToDashboard = () => {
-    setCurrentView('dashboard');
+    setCurrentView("dashboard");
     setSelectedApplicationId(null);
     setEditingApplicationId(null);
   };
 
-  const handleOneClickComplete = (result) => {
-    const submission = result?.submission;
-    const submissionData = submission?.data || submission;
-    const applicationId = submissionData?.id;
+  const handleOneClickComplete = result => {
+    const applicationId = result?.submission?.data?.id;
     if (applicationId) {
       setSelectedApplicationId(applicationId);
-      setCurrentView('offers');
+      setCurrentView("offers");
     } else {
-      setCurrentView('dashboard');
+      setCurrentView("dashboard");
     }
   };
 
-  const handleViewOffers = (applicationId) => {
-    setSelectedApplicationId(applicationId);
-    setCurrentView('offers');
+  const handleViewOffers = id => {
+    setSelectedApplicationId(id);
+    setCurrentView("offers");
   };
 
-  if (!isAuthenticated) {
-    return (
-      <>
-        {notice && (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
-            background: '#e8f4ff', color: '#035388', borderBottom: '1px solid #b3e6ff',
-            padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600
-          }}>
-            {notice}
-          </div>
-        )}
-        <Login onLoginSuccess={handleLoginSuccess} />
-      </>
-    );
-  }
+  const navButton = view => ({
+    padding: "10px 16px",
+    borderRadius: "10px",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "pointer",
+    border: "1px solid #e5e5e5",
+    background: currentView === view ? "#111" : "#fff",
+    color: currentView === view ? "#fff" : "#111",
+    transition: "all 0.2s ease"
+  });
 
   return (
-    <div className="App">
+    <div style={{ minHeight: "100vh", background: "#fafafa", color: "#111" }}>
       <GlobalErrorToast />
+
       {notice && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
-          background: '#e8f4ff', color: '#035388', borderBottom: '1px solid #b3e6ff',
-          padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600
-        }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#111",
+            color: "#fff",
+            padding: "10px 18px",
+            borderRadius: "12px",
+            zIndex: 1000,
+            fontSize: "14px",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.25)"
+          }}
+        >
           {notice}
         </div>
       )}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        padding: '1rem 2rem',
-        background: '#f5f5f5',
-        borderBottom: '2px solid #ddd'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <h1 style={{ margin: 0 }}>Farm Equipment Loan Intake</h1>
-          <nav style={{ display: 'flex', gap: '1rem' }}>
-            <button 
-              onClick={handleBackToDashboard}
-              style={{
-                padding: '0.5rem 1rem',
-                background: currentView === 'dashboard' ? '#4CAF50' : 'transparent',
-                color: currentView === 'dashboard' ? 'white' : '#333',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: currentView === 'dashboard' ? '600' : 'normal'
-              }}
-            >
-              Dashboard
-            </button>
-            <button 
-              onClick={handleStartNewApplication}
-              style={{
-                padding: '0.5rem 1rem',
-                background: currentView === 'application' ? '#4CAF50' : 'transparent',
-                color: currentView === 'application' ? 'white' : '#333',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: currentView === 'application' ? '600' : 'normal'
-              }}
-            >
-              New Application
-            </button>
+
+      {/* Header */}
+      <header
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #e5e5e5",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.05)"
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1280,
+            margin: "0 auto",
+            padding: "0 24px",
+            height: 72,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+            <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+              Farm Equipment Loan Intake
+            </h1>
+
+            <nav style={{ display: "flex", gap: 10 }}>
+              <button onClick={handleBackToDashboard} style={navButton("dashboard")}>
+                Dashboard
+              </button>
+              <button onClick={handleStartNewApplication} style={navButton("application")}>
+                New Application
+              </button>
+              <button onClick={handleOneClickSubmission} style={navButton("oneClick")}>
+                Fast App
+              </button>
+              <button onClick={handleLenderDashboard} style={navButton("lender")}>
+                Lender Dashboard
+              </button>
+              <button onClick={handleLenderPreferences} style={navButton("lenderPrefs")}>
+                Preferences
+              </button>
+            </nav>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontSize: 14, color: "#555" }}>
+              Welcome, <strong>{getUserDisplayName(user)}</strong>
+            </span>
             <button
-              onClick={handleOneClickSubmission}
+              onClick={handleLogout}
               style={{
-                padding: '0.5rem 1rem',
-                background: currentView === 'oneClick' ? '#4CAF50' : 'transparent',
-                color: currentView === 'oneClick' ? 'white' : '#333',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: currentView === 'oneClick' ? '600' : 'normal'
+                padding: "10px 16px",
+                borderRadius: "10px",
+                border: "1px solid #111",
+                background: "#111",
+                color: "#fff",
+                cursor: "pointer"
               }}
             >
-              Fast App
+              Logout
             </button>
-            <button 
-              onClick={handleLenderDashboard}
-              style={{
-                padding: '0.5rem 1rem',
-                background: currentView === 'lender' ? '#007bff' : 'transparent',
-                color: currentView === 'lender' ? 'white' : '#333',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: currentView === 'lender' ? '600' : 'normal'
-              }}
-            >
-              Lender Dashboard
-            </button>
-            <button 
-              onClick={handleLenderPreferences}
-              style={{
-                padding: '0.5rem 1rem',
-                background: currentView === 'lenderPrefs' ? '#007bff' : 'transparent',
-                color: currentView === 'lenderPrefs' ? 'white' : '#333',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: currentView === 'lenderPrefs' ? '600' : 'normal'
-              }}
-            >
-              Lender Preferences
-            </button>
-          </nav>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span>Welcome, <strong>{getUserDisplayName(user)}</strong></span>
-          <button 
-            onClick={handleLogout}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-      
-      {currentView === 'dashboard' ? (
-        <Dashboard 
-          user={user} 
-          token={token} 
-          onStartNewApplication={handleStartNewApplication}
-          onEditApplication={handleEditApplication}
-          onViewOffers={handleViewOffers}
-        />
-      ) : currentView === 'offers' ? (
-        <LoanOffersView 
-          applicationId={selectedApplicationId}
-          token={token}
-          onBack={handleBackToDashboard}
-          onEdit={handleEditApplication}
-        />
-      ) : currentView === 'lender' ? (
-        <LenderDashboard />
-      ) : currentView === 'lenderPrefs' ? (
-        <LenderPreferences />
-      ) : currentView === 'oneClick' ? (
-        <OneClickSubmissionProvider>
-          <OneClickSubmissionWizard
-            initialData={token ? { token } : undefined}
-            onSubmit={handleOneClickComplete}
-            onCancel={handleBackToDashboard}
+      </header>
+
+      {/* Content */}
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
+        {currentView === "dashboard" ? (
+          <Dashboard
+            user={user}
+            token={token}
+            onStartNewApplication={handleStartNewApplication}
+            onEditApplication={handleEditApplication}
+            onViewOffers={handleViewOffers}
           />
-        </OneClickSubmissionProvider>
-      ) : (
-        <LoanApplicationWizard 
-          user={user} 
-          token={token}
-          editingApplicationId={editingApplicationId}
-          onBack={handleBackToDashboard}
-          onViewOffers={handleViewOffers}
-        />
-      )}
+        ) : currentView === "offers" ? (
+          <LoanOffersView
+            applicationId={selectedApplicationId}
+            token={token}
+            onBack={handleBackToDashboard}
+            onEdit={handleEditApplication}
+          />
+        ) : currentView === "lender" ? (
+          <LenderDashboard />
+        ) : currentView === "lenderPrefs" ? (
+          <LenderPreferences />
+        ) : currentView === "oneClick" ? (
+          <OneClickSubmissionProvider>
+            <OneClickSubmissionWizard
+              initialData={token ? { token } : undefined}
+              onSubmit={handleOneClickComplete}
+              onCancel={handleBackToDashboard}
+            />
+          </OneClickSubmissionProvider>
+        ) : (
+          <LoanApplicationWizard
+            user={user}
+            token={token}
+            editingApplicationId={editingApplicationId}
+            onBack={handleBackToDashboard}
+            onViewOffers={handleViewOffers}
+          />
+        )}
+      </main>
     </div>
   );
 }

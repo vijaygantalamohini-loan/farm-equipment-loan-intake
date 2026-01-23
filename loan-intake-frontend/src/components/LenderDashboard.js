@@ -1,11 +1,130 @@
 import React, { useEffect, useState } from "react";
-import { loansAPI } from '../services/api';
-import { getValidToken } from '../utils/auth';
+import { loansAPI } from "../services/api";
+import { getValidToken } from "../utils/auth";
 
-const th = { padding: "12px 10px", textAlign: "left", fontWeight: 600, fontSize: 15, borderBottom: "2px solid #eee" };
-const td = { padding: "10px 8px", fontSize: 15 };
-const linkBtn = { background: "none", border: "none", color: "#007bff", textDecoration: "underline", cursor: "pointer", fontSize: 15 };
-const actionBtn = { background: "#007bff", color: "white", border: "none", borderRadius: 4, padding: "8px 18px", fontSize: 15, cursor: "pointer", marginRight: 8 };
+/* -------------------- STYLES -------------------- */
+
+const styles = {
+  page: {
+    maxWidth: 1280,
+    margin: "0 auto",
+    padding: "32px 24px",
+  },
+  title: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  subtitle: {
+    color: "#666",
+    marginBottom: 24,
+  },
+
+  card: {
+    background: "#fff",
+    border: "1px solid #e5e5e5",
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
+  },
+
+  tableWrap: {
+    overflowX: "auto",
+  },
+
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: 14,
+  },
+
+  th: {
+    padding: "14px 12px",
+    textAlign: "left",
+    fontWeight: 600,
+    borderBottom: "1px solid #e5e5e5",
+    background: "#fafafa",
+    whiteSpace: "nowrap",
+  },
+
+  td: {
+    padding: "14px 12px",
+    borderBottom: "1px solid #eee",
+    verticalAlign: "top",
+  },
+
+  linkBtn: {
+    background: "none",
+    border: "none",
+    color: "#111",
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: 0,
+  },
+
+  primaryBtn: {
+    background: "#111",
+    color: "#fff",
+    border: "1px solid #111",
+    borderRadius: 10,
+    padding: "8px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  dangerBtn: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #111",
+    borderRadius: 10,
+    padding: "8px 16px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  muted: {
+    color: "#777",
+    fontSize: 13,
+  },
+
+  badge: {
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    border: "1px solid #ddd",
+    background: "#fafafa",
+  },
+
+  section: {
+    marginTop: 32,
+  },
+
+  divider: {
+    margin: "24px 0",
+    border: "none",
+    borderTop: "1px solid #eee",
+  },
+
+  textarea: {
+    width: "100%",
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #ddd",
+    fontSize: 14,
+  },
+
+  decisionRow: {
+    display: "flex",
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  statusApproved: { color: "#1a7f37", fontWeight: 600 },
+  statusDeclined: { color: "#b42318", fontWeight: 600 },
+  statusConditional: { color: "#8a6d1d", fontWeight: 600 },
+};
+
+/* -------------------- COMPONENT -------------------- */
 
 function LenderDashboard() {
   const [applications, setApplications] = useState([]);
@@ -22,8 +141,8 @@ function LenderDashboard() {
         if (!token) return;
         const data = await loansAPI.getDashboard(token);
         setApplications(Array.isArray(data.applications) ? data.applications : []);
-      } catch (err) {
-        setError('Failed to load applications.');
+      } catch {
+        setError("Failed to load applications.");
         setApplications([]);
       } finally {
         setLoading(false);
@@ -33,66 +152,87 @@ function LenderDashboard() {
   }, []);
 
   return (
-    <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "30px" }}>
-      <h2>Lender Dashboard</h2>
-      {loading && <div>Loading applications...</div>}
-      {error && <div style={{ color: 'red', marginBottom: 16 }}>{error}</div>}
-      <p style={{ color: "#666", marginBottom: "20px" }}>
-        Applications routed to you. Click an Application # to view and make a decision.
+    <div style={styles.page}>
+      <h1 style={styles.title}>Lender Dashboard</h1>
+      <p style={styles.subtitle}>
+        Review assigned applications and make lending decisions.
       </p>
-      <div style={{ overflowX: "auto", background: "#fff", borderRadius: 8, boxShadow: "0 2px 8px #eee", padding: 20 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f8f9fa" }}>
-              <th style={th}>Application #</th>
-              <th style={th}>Borrower</th>
-              <th style={th}>Amount</th>
-              <th style={th}>Equipment</th>
-              <th style={th}>Status</th>
-              <th style={th}>Decision</th>
-              <th style={th}>Received</th>
-              <th style={th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(Array.isArray(applications) ? applications : []).map(app => (
-              <tr key={app.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td style={td}>
-                  <button style={linkBtn} onClick={() => setSelected(app)}>{app.id}</button>
-                </td>
-                <td style={td}>{app.borrower}</td>
-                <td style={td}>${app.amount?.toLocaleString?.() ?? ''}</td>
-                <td style={td}>{app.equipment}</td>
-                <td style={td}>{app.status}</td>
-                <td style={td}>{app.decision}</td>
-                <td style={td}>{app.received}</td>
-                <td style={td}>
-                  <button style={actionBtn}>View</button>
-                </td>
+
+      <div style={styles.card}>
+        {loading && <p style={styles.muted}>Loading applications…</p>}
+        {error && <p style={{ color: "#b42318" }}>{error}</p>}
+
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Application #</th>
+                <th style={styles.th}>Borrower</th>
+                <th style={styles.th}>Amount</th>
+                <th style={styles.th}>Equipment</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Decision</th>
+                <th style={styles.th}>Received</th>
+                <th style={styles.th}>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {applications.map((app, idx) => (
+                <tr key={app.id} style={{ background: idx % 2 ? "#fcfcfc" : "#fff" }}>
+                  <td style={styles.td}>
+                    <button style={styles.linkBtn} onClick={() => setSelected(app)}>
+                      {app.id}
+                    </button>
+                  </td>
+                  <td style={styles.td}>{app.borrower}</td>
+                  <td style={styles.td}>
+                    ${app.amount?.toLocaleString?.() ?? "—"}
+                  </td>
+                  <td style={styles.td}>{app.equipment}</td>
+                  <td style={styles.td}>
+                    <span style={styles.badge}>{app.status}</span>
+                  </td>
+                  <td style={styles.td}>{app.decision || "—"}</td>
+                  <td style={styles.td}>{app.received}</td>
+                  <td style={styles.td}>
+                    <button
+                      style={styles.primaryBtn}
+                      onClick={() => setSelected(app)}
+                    >
+                      Review
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       {selected && (
-        <div style={{ marginTop: 30, background: "#f8f9fa", borderRadius: 8, padding: 24, boxShadow: "0 2px 8px #eee" }}>
-          <h3>Application Detail: {selected.id}</h3>
+        <div style={{ ...styles.card, marginTop: 32 }}>
+          <h2>Application #{selected.id}</h2>
           <p><strong>Borrower:</strong> {selected.borrower}</p>
-          <p><strong>Amount:</strong> ${selected.amount?.toLocaleString?.() ?? ''}</p>
+          <p><strong>Amount:</strong> ${selected.amount?.toLocaleString?.() ?? "—"}</p>
           <p><strong>Equipment:</strong> {selected.equipment}</p>
           <p><strong>Status:</strong> {selected.status}</p>
-          <p><strong>Decision:</strong> {selected.decision}</p>
-          <p><strong>Date Received:</strong> {selected.received}</p>
-          <div style={{ marginTop: 20 }}>
-            <button style={actionBtn} onClick={() => setSelected(null)}>Close</button>
-          </div>
-          <hr style={{ margin: '24px 0' }} />
-          <DecisionPanel selected={selected} setSelected={setSelected} applications={applications} setApplications={setApplications} />
+          <p><strong>Decision:</strong> {selected.decision || "Pending"}</p>
+
+          <hr style={styles.divider} />
+
+          <DecisionPanel
+            selected={selected}
+            setSelected={setSelected}
+            applications={applications}
+            setApplications={setApplications}
+          />
         </div>
       )}
     </div>
   );
 }
+
+/* -------------------- DECISION PANEL -------------------- */
 
 function DecisionPanel({ selected, setSelected, applications, setApplications }) {
   const [decision, setDecision] = useState("");
@@ -106,38 +246,81 @@ function DecisionPanel({ selected, setSelected, applications, setApplications })
     setDecision(type);
     setTimeout(() => {
       setLoading(false);
-      setStatus(type === "approved" ? "Approved" : type === "declined" ? "Declined" : "Conditional");
+      const label =
+        type === "approved" ? "Approved" :
+        type === "declined" ? "Declined" :
+        "Conditional";
+
+      setStatus(label);
+
       setApplications(applications.map(app =>
-        app.id === selected.id ? { ...app, status: "Reviewed", decision: type === "approved" ? "Approved" : type === "declined" ? "Declined" : "Conditional" } : app
+        app.id === selected.id
+          ? { ...app, status: "Reviewed", decision: label }
+          : app
       ));
-      setSelected(sel => sel ? { ...sel, status: "Reviewed", decision: type === "approved" ? "Approved" : type === "declined" ? "Declined" : "Conditional" } : sel);
+
+      setSelected(sel =>
+        sel ? { ...sel, status: "Reviewed", decision: label } : sel
+      );
     }, 800);
   };
 
   return (
     <div>
-      <h4>Make a Decision</h4>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 18 }}>
-        <button style={actionBtn} disabled={loading} onClick={() => handleDecision("approved")}>Approve</button>
-        <button style={{ ...actionBtn, background: '#dc3545' }} disabled={loading} onClick={() => handleDecision("declined")}>Decline</button>
-        <button style={{ ...actionBtn, background: '#ffc107', color: '#333' }} disabled={loading} onClick={() => handleDecision("conditional")}>Add Conditions</button>
+      <h3>Make a Decision</h3>
+
+      <div style={styles.decisionRow}>
+        <button style={styles.primaryBtn} disabled={loading} onClick={() => handleDecision("approved")}>
+          Approve
+        </button>
+        <button style={styles.dangerBtn} disabled={loading} onClick={() => handleDecision("declined")}>
+          Decline
+        </button>
+        <button style={styles.dangerBtn} disabled={loading} onClick={() => handleDecision("conditional")}>
+          Conditional
+        </button>
       </div>
+
       {decision === "conditional" && (
-        <div style={{ marginBottom: 18 }}>
-          <label style={{ fontWeight: 600 }}>Conditions:</label><br />
-          <textarea value={conditions} onChange={e => setConditions(e.target.value)} rows={3} style={{ width: '100%', fontSize: 15, borderRadius: 4, border: '1px solid #ccc', padding: 8 }} />
-        </div>
+        <>
+          <label><strong>Conditions</strong></label>
+          <textarea
+            rows={3}
+            value={conditions}
+            onChange={e => setConditions(e.target.value)}
+            style={styles.textarea}
+          />
+        </>
       )}
-      <div style={{ marginBottom: 18 }}>
-        <label style={{ fontWeight: 600 }}>Optional Note:</label><br />
-        <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} style={{ width: '100%', fontSize: 15, borderRadius: 4, border: '1px solid #ccc', padding: 8 }} />
-      </div>
+
+      <label style={{ marginTop: 12, display: "block" }}>
+        <strong>Optional Note</strong>
+      </label>
+      <textarea
+        rows={2}
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        style={styles.textarea}
+      />
+
       {status && (
-        <div style={{ color: status === "Approved" ? '#28a745' : status === "Declined" ? '#dc3545' : '#ffc107', fontWeight: 600, marginTop: 10 }}>
-          Decision: {status}
+        <div style={{ marginTop: 12 }}>
+          <strong>Decision:</strong>{" "}
+          <span
+            style={
+              status === "Approved"
+                ? styles.statusApproved
+                : status === "Declined"
+                ? styles.statusDeclined
+                : styles.statusConditional
+            }
+          >
+            {status}
+          </span>
         </div>
       )}
-      {loading && <div style={{ color: '#007bff', marginTop: 10 }}>Saving decision...</div>}
+
+      {loading && <p style={styles.muted}>Saving decision…</p>}
     </div>
   );
 }
