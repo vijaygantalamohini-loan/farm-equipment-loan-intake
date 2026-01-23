@@ -34,84 +34,151 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
 
   const renderApplicationCard = (app) => {
     return (
-      <div key={app.id} className="application-card">
-        <div className="app-header">
-          <div className="app-title">#{app.application_number} • {app.borrower_name}</div>
-          <div className={`status-badge status-${app.status}`}>{app.status}</div>
+      <div key={app.id} style={{
+        background: '#ffffff',
+        border: '1px solid #e5e5e5',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '12px',
+        transition: 'all 0.2s ease',
+        cursor: 'pointer',
+        ':hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.08)'
+        }
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '16px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid #f0f0f0'
+        }}>
+          <div style={{
+            fontSize: '15px',
+            fontWeight: '600',
+            color: '#000000',
+            letterSpacing: '-0.01em'
+          }}>
+            {app.application_number} • {app.borrower_name}
+          </div>
+          <div style={{
+            padding: '4px 12px',
+            background: app.status === 'funded' ? '#000000' : 
+                       app.status === 'submitted' ? '#f5f5f5' : 
+                       '#fafafa',
+            color: app.status === 'funded' ? '#ffffff' : '#000000',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            border: app.status === 'funded' ? 'none' : '1px solid #e5e5e5'
+          }}>
+            {app.status.replace('_', ' ')}
+          </div>
         </div>
-        <div className="app-details">
-          <div className="app-detail-row">
-            <strong>Amount:</strong> {formatCurrency(app.loan_amount)}
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>Amount</span>
+            <span style={{ fontSize: '15px', fontWeight: '700', color: '#000000' }}>{formatCurrency(app.loan_amount)}</span>
           </div>
-          <div className="app-detail-row">
-            <strong>Equipment:</strong> {app.equipment}
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>Equipment</span>
+            <span style={{ fontSize: '14px', color: '#000000', fontWeight: '500' }}>{app.equipment}</span>
           </div>
-          <div className="app-detail-row">
-            <strong>Serial:</strong> {app.serial_number || 'N/A'}
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>Serial</span>
+            <span style={{ fontSize: '13px', color: '#000000', fontFamily: 'monospace' }}>{app.serial_number || 'N/A'}</span>
           </div>
+          
           {Array.isArray(app.trade_in_serials) && app.trade_in_serials.length > 0 && (
-            <div className="app-detail-row">
-              <strong>Trade-In Serials:</strong> {app.trade_in_serials.join(', ')}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>Trade-In</span>
+              <span style={{ fontSize: '13px', color: '#000000', fontFamily: 'monospace' }}>{app.trade_in_serials.join(', ')}</span>
             </div>
           )}
+          
           {app.ai_score && (
-            <div className="app-detail-row">
-              <strong>AI Score:</strong>
-              <span
-                style={{
-                  marginLeft: "6px",
-                  fontWeight: "bold",
-                  color: getAiScoreColor(app.ai_score.risk_tier),
-                }}
-              >
-                {Math.round((app.ai_score.approval_probability || 0) * 100)}% approval ·{" "}
-                {app.ai_score.risk_score} ({app.ai_score.risk_tier})
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginTop: '4px',
+              padding: '12px',
+              background: '#fafafa',
+              borderRadius: '8px',
+              border: '1px solid #f0f0f0'
+            }}>
+              <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>AI Score</span>
+              <span style={{
+                fontSize: '13px',
+                fontWeight: '700',
+                color: getAiScoreColor(app.ai_score.risk_tier),
+              }}>
+                {Math.round((app.ai_score.approval_probability || 0) * 100)}% · {app.ai_score.risk_score} ({app.ai_score.risk_tier})
               </span>
             </div>
           )}
+          
           {app.submitted_at && (
-            <div className="app-detail-row">
-              <strong>Date:</strong> {formatDate(app.submitted_at)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+              <span style={{ fontSize: '13px', color: '#666666', fontWeight: '500' }}>Date</span>
+              <span style={{ fontSize: '13px', color: '#000000' }}>{formatDate(app.submitted_at)}</span>
             </div>
           )}
         </div>
 
         {(app.status === 'draft' || app.status === 'in_progress') && onEditApplication && (
-          <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f0f0f0' }}>
             <button
               onClick={() => onEditApplication(app.id)}
               style={{
-                flex: 1,
-                padding: '8px 16px',
-                background: '#007bff',
+                width: '100%',
+                padding: '12px 20px',
+                background: '#000000',
                 color: 'white',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                fontWeight: 'bold',
+                fontWeight: '600',
+                fontSize: '14px',
+                letterSpacing: '0.3px',
+                transition: 'all 0.2s ease'
               }}
+              onMouseOver={(e) => e.target.style.background = '#333333'}
+              onMouseOut={(e) => e.target.style.background = '#000000'}
             >
-              📝 Resume
+              📝 Resume Application
             </button>
           </div>
         )}
 
         {app.status === 'submitted' && onViewOffers && (
-          <div style={{ marginTop: '10px', display: 'flex' }}>
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f0f0f0' }}>
             <button
               onClick={() => onViewOffers(app.id)}
               style={{
                 width: '100%',
-                padding: '8px 16px',
-                background: '#28a745',
+                padding: '12px 20px',
+                background: '#000000',
                 color: 'white',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                fontWeight: 'bold',
+                fontWeight: '600',
+                fontSize: '14px',
+                letterSpacing: '0.3px',
+                transition: 'all 0.2s ease'
               }}
+              onMouseOver={(e) => e.target.style.background = '#333333'}
+              onMouseOut={(e) => e.target.style.background = '#000000'}
             >
-              🎯 Get Loan Offers
+              Get Loan Offers
             </button>
           </div>
         )}
@@ -121,30 +188,69 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
 
   if (loading) {
     return (
-      <div className="dashboard-container">
-        <div className="loading">Loading dashboard...</div>
+      <div style={{
+        maxWidth: '1400px',
+        margin: '0 auto',
+        padding: '40px 24px',
+        minHeight: '100vh',
+        background: '#fafafa'
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '400px',
+          fontSize: '16px',
+          color: '#666666',
+          fontWeight: '500'
+        }}>
+          Loading dashboard...
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="dashboard-container">
+      <div style={{
+        maxWidth: '1400px',
+        margin: '0 auto',
+        padding: '40px 24px',
+        minHeight: '100vh',
+        background: '#fafafa'
+      }}>
         <div style={{
-          background: '#fff3cd',
-          border: '1px solid #ffeeba',
-          color: '#856404',
-          padding: '12px',
-          borderRadius: '6px',
-          marginBottom: '12px',
+          background: '#ffffff',
+          border: '1px solid #e5e5e5',
+          padding: '20px',
+          borderRadius: '12px',
+          marginBottom: '16px',
         }}>
-          <strong>Debug:</strong> API base {API_BASE}
+          <strong style={{ color: '#000000' }}>Debug:</strong> <span style={{ color: '#666666' }}>API base {API_BASE}</span>
         </div>
-        <div className="error-message">
-          <p>Error loading dashboard: {error.message}</p>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button onClick={fetchDashboard}>Retry</button>
-          </div>
+        <div style={{
+          background: '#ffffff',
+          border: '1px solid #e5e5e5',
+          padding: '24px',
+          borderRadius: '12px',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: '#000000', marginBottom: '20px', fontSize: '15px' }}>Error loading dashboard: {error.message}</p>
+          <button 
+            onClick={fetchDashboard}
+            style={{
+              padding: '12px 24px',
+              background: '#000000',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '14px'
+            }}
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
