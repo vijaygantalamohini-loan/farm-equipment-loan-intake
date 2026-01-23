@@ -132,8 +132,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allow_origins,
-        # Match both localhost and 127.0.0.1 on common dev ports
-        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost):30(00|01)$",
+        # Match localhost dev ports and GitHub Codespaces domains
+        allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost):30(00|01)$|^https://.*\.app\.github\.dev$",
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["authorization", "content-type", "idempotency-key"],

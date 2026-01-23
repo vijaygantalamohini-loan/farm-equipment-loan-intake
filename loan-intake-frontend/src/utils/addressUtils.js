@@ -1,6 +1,7 @@
 /**
  * Shared utilities for address handling across components
  */
+import { API_BASE } from "../services/api";
 
 /**
  * Auto-validate address with USPS API
@@ -15,7 +16,8 @@ export const autoValidateAddress = async (address, setStateCallback) => {
   }
   
   try {
-    const response = await fetch("http://localhost:8000/address/validate", {
+    const url = API_BASE ? `${API_BASE}/address/validate` : `/address/validate`;
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ street, city, state, zip })

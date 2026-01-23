@@ -67,11 +67,6 @@ function LoanRequestStep({
   const [equipmentIntelligenceStatus, setEquipmentIntelligenceStatus] = useState("idle");
   const [equipmentIntelligenceError, setEquipmentIntelligenceError] = useState(null);
   const equipmentIntelligenceAbortRef = useRef(null);
-  const [oneClickIdFile, setOneClickIdFile] = useState(null);
-  const [oneClickInvoiceFile, setOneClickInvoiceFile] = useState(null);
-  const [oneClickStatus, setOneClickStatus] = useState("idle");
-  const [oneClickError, setOneClickError] = useState(null);
-  const [oneClickResult, setOneClickResult] = useState(null);
 
   // Sync local loan state when initialData changes (resume prefill)
   const getFriendlyError = (error, fallback = "Unable to compute AI prequalification.") => {
@@ -430,6 +425,14 @@ function LoanRequestStep({
       Boolean(dealerState) &&
       primaryAsset;
 
+    console.log('[EquipmentIntelligence] useEffect triggered:', {
+      shouldCallIntelligence,
+      totalEquipmentValue,
+      calculatedLoanAmount,
+      dealerState,
+      primaryAsset: primaryAsset ? {make: primaryAsset.asset.make, model: primaryAsset.asset.model} : null
+    });
+
     if (!shouldCallIntelligence) {
       if (equipmentIntelligenceAbortRef.current) {
         equipmentIntelligenceAbortRef.current.abort();
@@ -464,13 +467,16 @@ function LoanRequestStep({
       ltv,
     };
 
+    console.log('[EquipmentIntelligence] Calling API with payload:', payload);
     equipmentIntelligenceAPI
       .getIntelligence(payload, controller.signal)
       .then((data) => {
+        console.log('[EquipmentIntelligence] Success:', data);
         setEquipmentIntelligence(data);
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
+        console.error('[EquipmentIntelligence] Error:', err);
         setEquipmentIntelligenceError(
           err?.message || "Unable to fetch equipment intelligence."
         );
@@ -508,58 +514,6 @@ function LoanRequestStep({
         amount: calculatedLoanAmount.toString()
       }
     }, 'loan');
-  };
-
-  const handleOneClickSubmit = async () => {
-    if (!oneClickIdFile || !oneClickInvoiceFile) {
-      setOneClickError("Please upload both ID and invoice images.");
-      return;
-    }
-
-    setOneClickStatus("loading");
-    setOneClickError(null);
-    setOneClickResult(null);
-
-    const formData = new FormData();
-    formData.append("id_image", oneClickIdFile);
-    formData.append("invoice_image", oneClickInvoiceFile);
-
-    const base = API_BASE || "";
-    const url = base ? `${base}/loans/one-click-submit` : "/loans/one-click-submit";
-    const headers = {};
-    const token = getValidToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-
-      const text = await response.text();
-      let data = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { detail: text };
-      }
-
-      if (!response.ok) {
-        const message = data?.detail || "One-click submission failed.";
-        setOneClickError(message);
-        setOneClickStatus("error");
-        return;
-      }
-
-      setOneClickResult(data);
-      setOneClickStatus("ready");
-    } catch (err) {
-      setOneClickError(err?.message || "One-click submission failed.");
-      setOneClickStatus("error");
-    }
   };
 
 
@@ -880,101 +834,6 @@ function LoanRequestStep({
           !equipmentIntelligenceError && (
             <p style={{ color: "#6c757d" }}>Awaiting equipment intelligence...</p>
           )
-        )}
-      </div>
-
-      <div
-        style={{
-          marginTop: "24px",
-          padding: "20px",
-          borderRadius: "10px",
-          border: "1px solid #e3e3e3",
-          backgroundColor: "#ffffff",
-          boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>One-Click Submit</h3>
-        <p style={{ color: "#666", marginTop: 0 }}>
-          Upload ID + invoice images to auto-fill, prequalify, and match lenders.
-        </p>
-
-        <div style={{ display: "grid", gap: "12px" }}>
-          <label style={{ display: "grid", gap: "6px" }}>
-            <span style={{ fontWeight: "600" }}>ID Image</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setOneClickIdFile(e.target.files?.[0] || null)}
-            />
-          </label>
-          <label style={{ display: "grid", gap: "6px" }}>
-            <span style={{ fontWeight: "600" }}>Invoice Image</span>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              onChange={(e) => setOneClickInvoiceFile(e.target.files?.[0] || null)}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={handleOneClickSubmit}
-            disabled={oneClickStatus === "loading"}
-            style={{
-              padding: "10px 16px",
-              fontSize: "15px",
-              backgroundColor: "#111827",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: oneClickStatus === "loading" ? "wait" : "pointer",
-              maxWidth: "240px",
-            }}
-          >
-            {oneClickStatus === "loading" ? "Submitting..." : "One-Click Submit"}
-          </button>
-        </div>
-
-        {oneClickError && (
-          <div
-            style={{
-              marginTop: "12px",
-              padding: "10px",
-              borderRadius: "6px",
-              background: "#f8d7da",
-              color: "#721c24",
-              border: "1px solid #f5c6cb",
-            }}
-          >
-            {oneClickError}
-          </div>
-        )}
-
-        {oneClickResult && (
-          <div style={{ marginTop: "16px", display: "grid", gap: "12px" }}>
-            <div>
-              <strong>AI Score:</strong>{" "}
-              {Math.round((oneClickResult.ai_prequal?.approval_probability || 0) * 100)}%{" "}
-              ({oneClickResult.ai_prequal?.risk_tier || "N/A"})
-            </div>
-            <div>
-              <strong>Valuation:</strong>{" "}
-              {formatCurrency(oneClickResult.equipment_intelligence?.valuation?.blended_value || 0)}
-            </div>
-            <div>
-              <strong>Fraud Flags:</strong>{" "}
-              {oneClickResult.fraud_flags && oneClickResult.fraud_flags.length > 0
-                ? oneClickResult.fraud_flags.map((flag) => flag.code || flag.message).join(", ")
-                : "None"}
-            </div>
-            <div>
-              <strong>Matched Lenders:</strong>{" "}
-              {oneClickResult.matched_lenders && oneClickResult.matched_lenders.length > 0
-                ? oneClickResult.matched_lenders
-                    .map((lender) => `${lender.lender_name} (${lender.match_score})`)
-                    .join(", ")
-                : "None"}
-            </div>
-          </div>
         )}
       </div>
 

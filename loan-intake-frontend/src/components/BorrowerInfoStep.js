@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { autoValidateAddress, createAddressChangeHandler, fetchAddressSuggestions } from "../utils/addressUtils";
-import { addressAPI } from "../services/api";
+import { addressAPI, API_BASE } from "../services/api";
 
 const OTHER_OPTION_VALUE = "__other__";
 
@@ -359,51 +359,29 @@ function BorrowerInfoStep({
     hasMountedRef.current = true;
   }, []);
 
+  // NAICS lookup when operation purpose changes (simplified working version)
   useEffect(() => {
     const purpose = (borrower.operationPurpose || "").trim();
-
-    if (!purpose) {
-      if (operationPurposeTimeoutRef.current) {
-        clearTimeout(operationPurposeTimeoutRef.current);
-        operationPurposeTimeoutRef.current = null;
-      }
-      setNaicsLookupLoading(false);
-      if (hasMountedRef.current) {
-        if (borrower.naicsCode) {
-          handleChange("naicsCode", "", buildLoanNaicsMeta(""));
-        }
-        setOperationNaicsDetails(null);
-      }
-      return;
-    }
-
-    if (purpose.length < 3) {
-      if (operationPurposeTimeoutRef.current) {
-        clearTimeout(operationPurposeTimeoutRef.current);
-        operationPurposeTimeoutRef.current = null;
-      }
-      setNaicsLookupLoading(false);
-      if (borrower.naicsCode) {
-        handleChange("naicsCode", "", buildLoanNaicsMeta(""));
-      }
+    
+    if (!purpose || purpose.length < 3) {
       setOperationNaicsDetails(null);
+      setNaicsLookupLoading(false);
       return;
     }
 
+    // Clear previous timeout
     if (operationPurposeTimeoutRef.current) {
       clearTimeout(operationPurposeTimeoutRef.current);
     }
 
-    let cancelled = false;
-    const timeoutId = setTimeout(async () => {
-      if (cancelled) return;
+    // Debounce NAICS lookup
+    operationPurposeTimeoutRef.current = setTimeout(async () => {
       setNaicsLookupLoading(true);
       try {
-        const response = await fetch(`http://localhost:8000/lookup/naics?keyword=${encodeURIComponent(purpose)}`);
+        const url = API_BASE ? `${API_BASE}/lookup/naics?keyword=${encodeURIComponent(purpose)}` : `/lookup/naics?keyword=${encodeURIComponent(purpose)}`;
+        const response = await fetch(url);
         const data = await response.json();
-        if (cancelled || operationPurposeLatestRef.current !== purpose) {
-          return;
-        }
+        
         if (data?.found) {
           setOperationNaicsDetails(data);
           handleChange("naicsCode", data.naics_code, buildLoanNaicsMeta(data.naics_code));
@@ -412,27 +390,18 @@ function BorrowerInfoStep({
           handleChange("naicsCode", "", buildLoanNaicsMeta(""));
         }
       } catch (err) {
-        if (!cancelled && operationPurposeLatestRef.current === purpose) {
-          console.error("NAICS lookup error:", err);
-          setOperationNaicsDetails(null);
-          handleChange("naicsCode", "", buildLoanNaicsMeta(""));
-        }
+        console.error("NAICS lookup error:", err);
+        setOperationNaicsDetails(null);
+        handleChange("naicsCode", "", buildLoanNaicsMeta(""));
       } finally {
-        if (!cancelled && operationPurposeLatestRef.current === purpose) {
-          setNaicsLookupLoading(false);
-        }
+        setNaicsLookupLoading(false);
       }
     }, 800);
 
-    operationPurposeTimeoutRef.current = timeoutId;
-
     return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-      if (operationPurposeTimeoutRef.current === timeoutId) {
-        operationPurposeTimeoutRef.current = null;
+      if (operationPurposeTimeoutRef.current) {
+        clearTimeout(operationPurposeTimeoutRef.current);
       }
-      setNaicsLookupLoading(false);
     };
   }, [borrower.operationPurpose]);
 
@@ -449,7 +418,8 @@ function BorrowerInfoStep({
     let cancelled = false;
     const fetchDetails = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/lookup/naics?keyword=${encodeURIComponent(code)}`);
+        const url = API_BASE ? `${API_BASE}/lookup/naics?keyword=${encodeURIComponent(code)}` : `/lookup/naics?keyword=${encodeURIComponent(code)}`;
+        const response = await fetch(url);
         const data = await response.json();
         if (cancelled) return;
         if (data?.found) {
@@ -592,7 +562,8 @@ function BorrowerInfoStep({
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:8000/ocr/id", {
+      const ocrUrl = API_BASE ? `${API_BASE}/ocr/id` : '/ocr/id';
+      const response = await fetch(ocrUrl, {
         method: "POST",
         body: formData
       });
@@ -792,19 +763,6 @@ function BorrowerInfoStep({
           }}
         >
           Scan ID / Upload Image
-        </button>
-        <button
-          onClick={() => setMode("manual")}
-          style={{
-            padding: "10px 20px",
-            fontSize: "14px",
-            cursor: "pointer",
-            backgroundColor: mode === "manual" ? "#007bff" : "#f0f0f0",
-            color: mode === "manual" ? "white" : "black",
-            border: "1px solid #ccc",
-          }}
-        >
-          Enter Manually
         </button>
       </div>
 
@@ -1171,11 +1129,11 @@ function BorrowerInfoStep({
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
             <div style={{ position: "relative" }}>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Primary Operation Purpose
+              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "14px" }}>
+                Purpose *
               </label>
               <input
-                placeholder="e.g., Purchase tractor for farming operations"
+                placeholder="e.g., Dairy farm equipment and operations"
                 value={borrower.operationPurpose}
                 onChange={e => handleOperationPurposeInput(e.target.value)}
                 onFocus={() => setShowOperationPurposeSuggestions(true)}
@@ -1188,6 +1146,7 @@ function BorrowerInfoStep({
                     suggestionHideTimeoutRef.current = null;
                   }, 120);
                 }}
+                required
                 style={{ width: "100%", padding: "8px", fontSize: "14px" }}
               />
               {showOperationPurposeSuggestions && (borrower.operationPurpose || "").trim().length > 0 && (
@@ -1235,32 +1194,21 @@ function BorrowerInfoStep({
                   )}
                 </div>
               )}
+              
               {naicsLookupLoading && (
-                <small style={{ display: "block", marginTop: "6px", color: "#007bff", fontSize: "12px" }}>
-                  🔍 Detecting NAICS code...
-                </small>
-              )}
-              {!naicsLookupLoading && !operationNaicsDetails && (borrower.operationPurpose || "").trim().length >= 3 && (
-                <small style={{ display: "block", marginTop: "6px", color: "#b76e00", fontSize: "12px" }}>
-                  ⚠️ No NAICS match yet. Try refining the description.
+                <small style={{ display: "block", marginTop: "3px", color: "#007bff", fontSize: "12px" }}>
+                  🔍 Looking up NAICS code...
                 </small>
               )}
               {operationNaicsDetails && operationNaicsDetails.description && (
-                <small style={{ display: "block", marginTop: "6px", color: "#28a745", fontSize: "12px", fontWeight: 500 }}>
+                <small style={{ display: "block", marginTop: "3px", color: "#28a745", fontSize: "12px", fontWeight: "500" }}>
                   ✓ {operationNaicsDetails.description}
-                  {operationNaicsDetails.sector && (
-                    <span style={{ marginLeft: "6px", color: "#666", fontWeight: "normal" }}>
-                      ({operationNaicsDetails.sector})
-                    </span>
-                  )}
+                  <span style={{ marginLeft: "8px", color: "#666" }}>({operationNaicsDetails.sector})</span>
                 </small>
               )}
-              <small style={{ display: "block", marginTop: "6px", color: "#777" }}>
-                Describe the core products or services so we can map the business to the right industry classification.
-              </small>
             </div>
             <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "14px" }}>
                 NAICS Code <span style={{ fontWeight: "normal", fontSize: "12px", color: "#666" }}>(auto-detected)</span>
               </label>
               <input

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './ApplicationHistory.css';
+import { API_BASE } from '../services/api';
 
 function ApplicationHistory() {
   const [applications, setApplications] = useState([]);
@@ -21,9 +22,10 @@ function ApplicationHistory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const endpoint = view === 'my' 
-        ? 'http://localhost:8000/loans/my-applications'
-        : 'http://localhost:8000/loans/location-applications';
+      const endpointPath = view === 'my' 
+        ? '/loans/my-applications'
+        : '/loans/location-applications';
+      const endpoint = API_BASE ? `${API_BASE}${endpointPath}` : endpointPath;
 
       const response = await fetch(endpoint, {
         headers: {

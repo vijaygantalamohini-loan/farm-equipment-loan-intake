@@ -32,6 +32,13 @@ async def ocr_id(file: UploadFile = File(...)):
     
     extracted_text = ocr_result.get("rawText", [])
     line_entries = ocr_result.get("lines") or extracted_text
+    
+    # Debug logging
+    print("[OCR_ROUTES] ===== RAW OCR TEXT =====")
+    for i, line in enumerate(extracted_text):
+        print(f"[OCR_ROUTES] Line {i}: {line}")
+    print("[OCR_ROUTES] ========================")
+    
     fields = parse_id_fields_with_confidence(line_entries)
     fields, needs_review = apply_confidence_threshold(fields, threshold=0.7)
 
@@ -43,6 +50,12 @@ async def ocr_id(file: UploadFile = File(...)):
     city = fields["address"]["city"]["value"]
     state = fields["address"]["state"]["value"]
     zip_code = fields["address"]["zip"]["value"]
+
+    print(f"[OCR_ROUTES] Parsed Results:")
+    print(f"[OCR_ROUTES]   First Name: {first_name}")
+    print(f"[OCR_ROUTES]   Last Name: {last_name}")
+    print(f"[OCR_ROUTES]   DOB: {date_of_birth}")
+    print(f"[OCR_ROUTES]   Address: {street}, {city}, {state} {zip_code}")
 
     return {
         "rawText": extracted_text,

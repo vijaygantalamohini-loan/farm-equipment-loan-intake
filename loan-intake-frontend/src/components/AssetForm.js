@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import manufacturersData from "../data/manufacturers.json";
 import { Html5Qrcode } from "html5-qrcode";
+import { API_BASE } from "../services/api";
 
 function AssetForm({ 
   asset, 
@@ -43,7 +44,8 @@ function AssetForm({
     alert("Processing image with OCR... Please wait.");
 
     try {
-      const response = await fetch("http://localhost:8000/ocr/asset", {
+      const url = API_BASE ? `${API_BASE}/ocr/asset` : `/ocr/asset`;
+      const response = await fetch(url, {
         method: "POST",
         body: formData
       });
@@ -162,7 +164,8 @@ function AssetForm({
     setLookupDetails(null);
     
     try {
-      const response = await fetch(`http://localhost:8000/lookup/serial/${encodeURIComponent(serialNum)}`);
+      const url = API_BASE ? `${API_BASE}/lookup/serial/${encodeURIComponent(serialNum)}` : `/lookup/serial/${encodeURIComponent(serialNum)}`;
+      const response = await fetch(url);
       const data = await response.json();
       
       if (data.found) {
@@ -203,6 +206,19 @@ function AssetForm({
       lookupSerialNumber(trimmed);
     }, 1000);
   };
+
+  // Auto-lookup serial number when component mounts with existing serial
+  useEffect(() => {
+    const serialNum = (asset.serialNumber || "").trim();
+    // Only lookup on mount if serial exists and we don't have details yet
+    if (serialNum && serialNum.length >= 6 && !lookupDetails) {
+      const timer = setTimeout(() => {
+        lookupSerialNumber(serialNum);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetIndex]); // Only run when switching assets, not on every serial change
 
   useEffect(() => {
     return () => {

@@ -24,9 +24,12 @@ except Exception:  # pragma: no cover - optional dependency in some environments
 
 load_dotenv()
 
-# Azure credentials pulled from environment to avoid hardcoding secrets
+# Azure credentials from environment variables
 AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT")
 AZURE_KEY = os.getenv("AZURE_KEY")
+
+print(f"[OCR_SERVICE] AZURE_ENDPOINT loaded: {AZURE_ENDPOINT}")
+print(f"[OCR_SERVICE] AZURE_KEY loaded: {AZURE_KEY[:20] if AZURE_KEY else None}...")
 
 if not AZURE_ENDPOINT or not AZURE_KEY:
     raise ValueError(
@@ -154,8 +157,8 @@ def _analyze_image_metadata(image_data: bytes) -> Dict[str, Any]:
 
 async def extract_text_from_id(image_data: bytes) -> dict:
     """
-    Extract text from an ID card using Azure Computer Vision OCR.
-    Uses v3.2/ocr endpoint for faster ID scanning.
+    Extract text from an ID card using Azure Computer Vision Read API 3.1.
+    This is compatible with older Computer Vision resources.
     
     Args:
         image_data: Binary image data
@@ -167,39 +170,128 @@ async def extract_text_from_id(image_data: bytes) -> dict:
         "Ocp-Apim-Subscription-Key": AZURE_KEY,
         "Content-Type": "application/octet-stream"
     }
-    ocr_url = AZURE_ENDPOINT.rstrip("/") + "/vision/v3.2/ocr?language=en&detectOrientation=true"
+    # Use Computer Vision 3.1 Read API - works with older CV resources
+    read_url = AZURE_ENDPOINT.rstrip("/") + "/vision/v3.1/read/analyze"
 
     tampering = _analyze_image_metadata(image_data)
+    
+    print("=" * 80)
+    print("[OCR_SERVICE] ===== AZURE OCR REQUEST START =====")
+    print(f"[OCR_SERVICE] Endpoint: {AZURE_ENDPOINT}")
+    print(f"[OCR_SERVICE] Full URL: {read_url}")
+    print(f"[OCR_SERVICE] API Key (first 20 chars): {AZURE_KEY[:20]}...")
+    print(f"[OCR_SERVICE] API Key (last 10 chars): ...{AZURE_KEY[-10:]}")
+    print(f"[OCR_SERVICE] Image size: {len(image_data)} bytes")
+    print(f"[OCR_SERVICE] Headers: {{'Ocp-Apim-Subscription-Key': '***', 'Content-Type': '{headers['Content-Type']}'}}")
+    print("=" * 80)
+    
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(ocr_url, headers=headers, content=image_data)
+        # Step 1: Submit the image for analysis
+        print(f"[OCR_SERVICE] Sending POST request to Azure...")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(read_url, headers=headers, content=image_data)
+        
+        print(f"[OCR_SERVICE] Response Status Code: {resp.status_code}")
+        print(f"[OCR_SERVICE] Response Headers: {dict(resp.headers)}")
+        print(f"[OCR_SERVICE] Response Body Preview: {resp.text[:500]}")
         
         if resp.status_code >= 400:
             try:
                 err = resp.json()
             except Exception:
                 err = resp.text
+            print(f"[OCR_SERVICE] Azure Read API error: {err}")
             return {
-                "error": f"Azure OCR failed: {err}",
+                "error": f"Azure OCR failed (HTTP {resp.status_code}): {err}",
                 **tampering,
             }
 
-        result = resp.json()
-        line_entries = _extract_lines_from_azure_result(result)
-        extracted_text = [line["text"] for line in line_entries]
-
+        # Step 2: Get the operation location from headers to poll for results
+        operation_location = resp.headers.get("Operation-Location")
+        if not operation_location:
+            print(f"[OCR_SERVICE] ERROR: No Operation-Location header found!")
+            print(f"[OCR_SERVICE] Available headers: {list(resp.headers.keys())}")
+            return {
+                "error": "No Operation-Location header in Azure response",
+                **tampering,
+            }
+        
+        print(f"[OCR_SERVICE] ✓ Operation submitted successfully")
+        print(f"[OCR_SERVICE] Operation Location: {operation_location}")
+        print(f"[OCR_SERVICE] Starting to poll for results...")
+        
+        # Step 3: Poll for results
+        import asyncio
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            await asyncio.sleep(1)  # Wait 1 second between polls
+            
+            print(f"[OCR_SERVICE] Poll attempt {attempt + 1}/{max_attempts}...")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                result_resp = await client.get(operation_location, headers={"Ocp-Apim-Subscription-Key": AZURE_KEY})
+            
+            print(f"[OCR_SERVICE] Poll response status: {result_resp.status_code}")
+            if result_resp.status_code != 200:
+                print(f"[OCR_SERVICE] Poll failed with status {result_resp.status_code}, retrying...")
+                continue
+                
+            result = result_resp.json()
+            status = result.get("status")
+            print(f"[OCR_SERVICE] Operation status: {status}")
+            
+            if status == "succeeded":
+                # Extract text from Read API response
+                line_entries = []
+                extracted_text = []
+                
+                print(f"[OCR_SERVICE] ✓ OCR succeeded! Extracting text...")
+                for read_result in result.get("analyzeResult", {}).get("readResults", []):
+                    for line in read_result.get("lines", []):
+                        text = line.get("text", "")
+                        if text:
+                            extracted_text.append(text)
+                            line_entries.append({
+                                "text": text,
+                                "confidence": None,
+                                "words": []
+                            })
+                
+                print(f"[OCR_SERVICE] Extracted {len(extracted_text)} lines of text")
+                print(f"[OCR_SERVICE] Sample text: {extracted_text[:3] if extracted_text else 'None'}")
+                print("=" * 80)
+                
+                return {
+                    "rawText": extracted_text,
+                    "lines": line_entries,
+                    **tampering,
+                }
+            elif status == "failed":
+                print(f"[OCR_SERVICE] ✗ Azure operation failed")
+                print(f"[OCR_SERVICE] Failure details: {result}")
+                return {
+                    "error": f"Azure Read API failed: {result}",
+                    **tampering,
+                }
+        
+        print(f"[OCR_SERVICE] ✗ Timeout after {max_attempts} polling attempts")
+        print("=" * 80)
         return {
-            "rawText": extracted_text,
-            "lines": line_entries,
+            "error": "Timeout waiting for Azure Read API results",
             **tampering,
         }
     
     except httpx.RequestError as e:
+        print(f"[OCR_SERVICE] ✗ Network error: {str(e)}")
+        print("=" * 80)
         return {
-            "error": f"Error contacting Azure service: {e}",
+            "error": f"Network error contacting Azure: {str(e)}",
             **tampering,
         }
     except Exception as e:
+        import traceback
+        print(f"[OCR_SERVICE] ✗ Unexpected exception:")
+        print(traceback.format_exc())
+        print("=" * 80)
         return {
             "error": f"OCR processing error: {str(e)}",
             **tampering,

@@ -15,8 +15,9 @@ const DEFAULT_API_BASE = `http://${RESOLVED_HOST}:8000`;
 const IS_DEV = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development';
 const IS_LOCAL_HOSTNAME = (typeof window !== 'undefined' && window.location && (/^(localhost|127\.0\.0\.1)$/).test(window.location.hostname));
 const IS_CRA_DEV = (typeof window !== 'undefined' && window.location && (window.location.port === '3000' || window.location.port === '3001'));
-// Prefer CRA dev proxy when running locally to avoid CORS; use relative paths
-const PREFER_PROXY = (IS_DEV && IS_CRA_DEV) || (IS_LOCAL_HOSTNAME && IS_CRA_DEV);
+const IS_CODESPACES = (typeof window !== 'undefined' && window.location && window.location.hostname && window.location.hostname.includes('github.dev'));
+// Prefer CRA dev proxy when running locally or in Codespaces to avoid CORS; use relative paths
+const PREFER_PROXY = IS_DEV || IS_CODESPACES || (IS_LOCAL_HOSTNAME && IS_CRA_DEV);
 const API_BASE_URL = PREFER_PROXY ? '' : (process.env.REACT_APP_API_URL || DEFAULT_API_BASE);
 // Expose API base globally for quick debugging
 try { if (typeof window !== 'undefined') { window.__API_BASE = API_BASE_URL; } } catch {}
@@ -602,7 +603,7 @@ export const lookupAPI = {
    * Search NAICS codes
    */
   async searchNaics(query) {
-    return apiRequest(`/lookup/naics?q=${encodeURIComponent(query)}`);
+    return apiRequest(`/lookup/naics?keyword=${encodeURIComponent(query)}`);
   },
 };
 

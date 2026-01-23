@@ -221,7 +221,7 @@ function App() {
                 fontWeight: currentView === 'oneClick' ? '600' : 'normal'
               }}
             >
-              One-Click Submission
+              Fast App
             </button>
             <button 
               onClick={handleLenderDashboard}

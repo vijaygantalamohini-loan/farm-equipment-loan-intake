@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { API_BASE } from "../services/api";
 
 function LoanCalculator({ purchaseAssets, tradeIns, cashDown, purpose, onPurposeChange, onNaicsChange }) {
   const [naicsCode, setNaicsCode] = useState(null);
@@ -98,7 +99,8 @@ function LoanCalculator({ purchaseAssets, tradeIns, cashDown, purpose, onPurpose
     purposeTimeoutRef.current = setTimeout(async () => {
       setNaicsLoading(true);
       try {
-        const response = await fetch(`http://localhost:8000/lookup/naics?keyword=${encodeURIComponent(purpose)}`);
+        const url = API_BASE ? `${API_BASE}/lookup/naics?keyword=${encodeURIComponent(purpose)}` : `/lookup/naics?keyword=${encodeURIComponent(purpose)}`;
+        const response = await fetch(url);
         const data = await response.json();
         if (data.found) {
           setNaicsCode(data);

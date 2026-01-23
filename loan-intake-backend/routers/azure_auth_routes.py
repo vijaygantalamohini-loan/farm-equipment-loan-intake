@@ -39,11 +39,49 @@ def _prune_state_cache(now: float) -> None:
 
 
 @router.get("/login")
-async def azure_login(request: Request):
+async def azure_login(request: Request, db: Session = Depends(get_db)):
     """
     Redirect user to Microsoft Entra External ID login page.
     Frontend should redirect user to this endpoint.
+    In DEV_MODE, bypass Azure AD and create a test user.
     """
+    # Check for dev mode bypass
+    import os
+    if os.getenv("DEV_MODE", "").lower() == "true":
+        auth_logger.info("dev_mode_enabled", extra={"message": "Bypassing Azure AD authentication"})
+        
+        # Create or get test salesperson
+        test_email = "dev@example.com"
+        salesperson = db.query(Salesperson).filter(Salesperson.email == test_email).first()
+        
+        if not salesperson:
+            salesperson = Salesperson(
+                email=test_email,
+                name="Dev User",
+                location="Test Location",
+                role="salesperson"
+            )
+            db.add(salesperson)
+            db.commit()
+            db.refresh(salesperson)
+            auth_logger.info("dev_mode_user_created", extra={"email": test_email})
+        
+        # Create a simple JWT token
+        from datetime import datetime, timedelta
+        token_data = {
+            "sub": test_email,
+            "name": salesperson.name,
+            "email": salesperson.email,
+            "exp": datetime.utcnow() + timedelta(days=7)
+        }
+        access_token = jwt.encode(token_data, settings.secret_key, algorithm=settings.algorithm)
+        
+        # Redirect to frontend with token
+        frontend_callback = f"{get_frontend_url()}/auth/callback?token={access_token}&user={salesperson.email}"
+        auth_logger.info("dev_mode_redirect", extra={"redirect_url": frontend_callback[:100]})
+        return RedirectResponse(url=frontend_callback)
+    
+    # Normal Azure AD flow
     redirect_uri = f"{get_backend_url()}/auth/callback"
     try:
         auth_logger.info(
