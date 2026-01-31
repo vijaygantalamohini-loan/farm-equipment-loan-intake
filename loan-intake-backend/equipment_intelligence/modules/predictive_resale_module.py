@@ -63,13 +63,17 @@ def predictive_resale_module(make, model, year, hours, region, condition):
     model_pred = _load_resale_model()
     ml_pred = None
     if model_pred:
-        X = {
-            "region": region or "NA",
-            "condition": condition or "Good",
-            "age": age_years or 5,
-            "hours": safe_hours or 0,
-        }
-        ml_pred = model_pred.predict([list(X.values())])[0]
+        try:
+            import pandas as pd
+            X = pd.DataFrame({
+                "region": [region or "NA"],
+                "condition": [condition or "Good"],
+                "age": [age_years or 5],
+                "hours": [safe_hours or 0],
+            })
+            ml_pred = model_pred.predict(X)[0]
+        except Exception:
+            ml_pred = None
 
     blended = base_price
     if ml_pred:

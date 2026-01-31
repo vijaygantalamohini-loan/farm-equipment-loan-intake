@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import AssetForm from "./AssetForm";
 import TradeInSection from "./TradeInSection";
 import LoanCalculator from "./LoanCalculator";
-import { prequalificationAPI, equipmentIntelligenceAPI, API_BASE } from "../services/api";
+import { prequalificationAPI, equipmentIntelligenceAPI } from "../services/api";
 import { formatCurrency } from "../utils/format";
-import { getValidToken } from "../utils/auth";
+import { Plus, AlertCircle, TrendingUp, AlertTriangle } from "lucide-react";
 
 const detectAssetType = (asset = {}) => asset.equipmentType || asset.make || "Equipment";
 
@@ -327,14 +327,14 @@ function LoanRequestStep({
   };
 
   const getProbabilityColor = (probability) => {
-    if (probability >= 0.75) return "#28a745";
-    if (probability >= 0.4) return "#ffc107";
-    return "#dc3545";
+    if (probability >= 0.75) return "text-green-600";
+    if (probability >= 0.4) return "text-yellow-600";
+    return "text-red-600";
   };
   const getRiskColor = (tier) => {
-    if (tier === "High") return "#dc3545";
-    if (tier === "Medium") return "#ffc107";
-    return "#28a745";
+    if (tier === "High") return "text-red-600";
+    if (tier === "Medium") return "text-yellow-600";
+    return "text-green-600";
   };
 
   useEffect(() => {
@@ -518,38 +518,34 @@ function LoanRequestStep({
 
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
-      <h2>Loan Request</h2>
-      <p style={{ color: "#666", marginBottom: "20px" }}>
+    <div className="mx-auto px-4 py-6">
+      <h2 className="text-3xl font-bold text-black mb-2">Loan Request</h2>
+      <p className="text-gray-600 mb-6">
         Provide details about the loan and the equipment you're financing.
       </p>
 
       {/* Purchase Assets */}
-      <div style={{ marginBottom: "30px" }}>
-        <h3 style={{ marginBottom: "15px" }}>
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold text-black mb-4 flex items-center">
           Equipment to Purchase
-          <span style={{ fontSize: "14px", fontWeight: "normal", color: "#666", marginLeft: "10px" }}>
+          <span className="text-sm font-normal text-gray-600 ml-3">
             ({loan.purchaseAssets.length} asset{loan.purchaseAssets.length !== 1 ? 's' : ''})
           </span>
         </h3>
 
         {/* Asset tabs */}
         {loan.purchaseAssets.length > 1 && (
-          <div style={{ display: "flex", gap: "5px", marginBottom: "20px", flexWrap: "wrap" }}>
+          <div className="flex gap-2 mb-6 flex-wrap">
             {loan.purchaseAssets.map((asset, idx) => (
               <button
                 key={asset.id}
                 type="button"
                 onClick={() => setCurrentAssetIndex(idx)}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  backgroundColor: currentAssetIndex === idx ? "#007bff" : "#f0f0f0",
-                  color: currentAssetIndex === idx ? "white" : "black",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px"
-                }}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition ${
+                  currentAssetIndex === idx
+                    ? "bg-black text-white border-black"
+                    : "bg-gray-100 text-black border-gray-500 hover:bg-gray-200"
+                }`}
               >
                 Asset {idx + 1}
                 {asset.make && ` - ${asset.make}`}
@@ -584,32 +580,23 @@ function LoanRequestStep({
         <button
           type="button"
           onClick={addPurchaseAsset}
-          style={{
-            padding: "10px 20px",
-            fontSize: "15px",
-            backgroundColor: "#28a745",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            width: "100%",
-            marginTop: "10px"
-          }}
+          className="w-full mt-4 px-4 py-3 bg-black text-white font-semibold rounded-lg hover:bg-gray-800 transition flex items-center justify-center gap-2"
         >
-          ➕ Add Another Asset
+          <Plus size={20} />
+          Add Another Asset
         </button>
       </div>
 
       {/* Trade-In Toggle */}
-      <div style={{ marginBottom: "20px" }}>
-        <label style={{ display: "flex", alignItems: "center", fontSize: "16px", cursor: "pointer" }}>
+      <div className="mb-6">
+        <label className="flex items-center cursor-pointer">
           <input
             type="checkbox"
             checked={loan.hasTradeIn}
             onChange={e => handleTradeInToggle(e.target.checked)}
-            style={{ marginRight: "10px", width: "18px", height: "18px", cursor: "pointer" }}
+            className="w-5 h-5 text-black border-gray-500 rounded focus:ring-2 focus:ring-black cursor-pointer"
           />
-          <strong>I have equipment to trade in</strong>
+          <span className="ml-3 text-base font-semibold text-black">I have equipment to trade in</span>
         </label>
       </div>
 
@@ -622,18 +609,12 @@ function LoanRequestStep({
       )}
 
       {/* Cash Down Payment */}
-      <div style={{ 
-        marginBottom: "30px",
-        backgroundColor: "#f8f9fa",
-        border: "2px solid #28a745",
-        borderRadius: "8px",
-        padding: "20px"
-      }}>
-        <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#28a745" }}>
+      <div className="mb-8 p-6 bg-gray-50 border-2 border-black rounded-lg">
+        <h3 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
           💵 Cash Down Payment
         </h3>
         <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "14px" }}>
+          <label className="block text-sm font-semibold text-black mb-2">
             Down Payment Amount ($)
           </label>
           <input
@@ -641,11 +622,11 @@ function LoanRequestStep({
             placeholder="0"
             value={loan.cashDown}
             onChange={e => handleChange("cashDown", e.target.value)}
-            style={{ width: "100%", padding: "10px", fontSize: "16px", maxWidth: "300px" }}
+            className="w-full max-w-xs px-3 py-2 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition"
           />
-          <small style={{ display: "block", marginTop: "5px", color: "#666" }}>
+          <p className="text-xs text-gray-600 mt-2">
             Enter the amount you plan to pay as down payment (optional)
-          </small>
+          </p>
         </div>
       </div>
 
@@ -659,97 +640,69 @@ function LoanRequestStep({
         onNaicsChange={(naics) => handleChange("naicsCode", naics)}
       />
 
-      <div
-        style={{
-          marginTop: "30px",
-          padding: "20px",
-          borderRadius: "10px",
-          border: "1px solid #e3e3e3",
-          backgroundColor: "#ffffff",
-          boxShadow: "0 1px 6px rgba(0,0,0,0.05)",
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>AI Pre-Qualification</h3>
+      <div className="mt-8 p-6 rounded-lg border border-gray-500 bg-white shadow-sm">
+        <h3 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
+          <TrendingUp size={20} className="text-black" />
+          AI Pre-Qualification
+        </h3>
         {prequalificationStatus === "loading" && (
-          <p style={{ color: "#6c757d" }}>Analyzing the application...</p>
+          <p className="text-gray-600">Analyzing the application...</p>
         )}
         {prequalificationError && (
-          <div
-            style={{
-              marginBottom: "12px",
-              padding: "10px",
-              borderRadius: "6px",
-              background: "#f8d7da",
-              color: "#721c24",
-              border: "1px solid #f5c6cb",
-            }}
-          >
-            {prequalificationError}
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex gap-2">
+            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+            <span>{prequalificationError}</span>
           </div>
         )}
         {prequalification ? (
-          <div style={{ display: "grid", gap: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>
-                <strong>Approval Probability:</strong>
-                <span
-                  style={{
-                    marginLeft: "6px",
-                    fontWeight: "bold",
-                    color: getProbabilityColor(prequalification.approval_probability),
-                  }}
-                >
+          <div className="space-y-3">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700">Approval Probability</p>
+                <p className={`text-2xl font-bold ${getProbabilityColor(prequalification.approval_probability)}`}>
                   {Math.round((prequalification.approval_probability || 0) * 100)}%
-                </span>
+                </p>
               </div>
-              <div>
-                <strong>Risk Score:</strong>
-                <span
-                  style={{
-                    marginLeft: "6px",
-                    fontWeight: "bold",
-                    color: getRiskColor(prequalification.risk_tier),
-                  }}
-                >
-                  {prequalification.risk_score ?? "—"} ({prequalification.risk_tier || "N/A"})
-                </span>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700">Risk Score</p>
+                <p className={`text-2xl font-bold ${getRiskColor(prequalification.risk_tier)}`}>
+                  {prequalification.risk_score ?? "—"}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">({prequalification.risk_tier || "N/A"})</p>
               </div>
             </div>
-            <div>
-              <strong>Flags:</strong>{" "}
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Flags</p>
               {prequalification.flags && prequalification.flags.length > 0 ? (
-                <span style={{ color: "#555" }}>
-                  {prequalification.flags.join(", ")}
-                </span>
+                <p className="text-sm text-gray-700">{prequalification.flags.join(", ")}</p>
               ) : (
-                <span style={{ color: "#6c757d" }}>None</span>
+                <p className="text-sm text-gray-600">None</p>
               )}
             </div>
-            <div
-              style={{
-                padding: "12px",
-                borderRadius: "8px",
-                background: "#f8f9fa",
-                border: "1px dashed #dcdcdc",
-              }}
-            >
-              <strong>Suggested Structure</strong>
-              <div style={{ marginTop: "8px", display: "grid", gap: "4px" }}>
-                <div>
-                  Down Payment:{" "}
-                  {formatCurrency(
-                    prequalification.optimal_structure?.recommended_down_payment || 0
-                  )}
+            <div className="p-4 rounded-lg bg-blue-50 border-2 border-dashed border-blue-200">
+              <p className="font-semibold text-black mb-3">💡 Suggested Loan Structure</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-700">Down Payment:</span>
+                  <span className="font-semibold text-black">
+                    {formatCurrency(
+                      prequalification.optimal_structure?.recommended_down_payment || 0
+                    )}
+                  </span>
                 </div>
-                <div>
-                  Term:{" "}
-                  {(prequalification.optimal_structure?.recommended_term || 0)} months
+                <div className="flex justify-between">
+                  <span className="text-gray-700">Term:</span>
+                  <span className="font-semibold text-black">
+                    {(prequalification.optimal_structure?.recommended_term || 0)} months
+                  </span>
                 </div>
-                <div>
-                  Est. Payment:{" "}
-                  {formatCurrency(
-                    prequalification.optimal_structure?.expected_monthly_payment || 0
-                  )}
+                <div className="flex justify-between">
+                  <span className="text-gray-700">Est. Monthly Payment:</span>
+                  <span className="font-semibold text-black">
+                    {formatCurrency(
+                      prequalification.optimal_structure?.expected_monthly_payment || 0
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -757,97 +710,93 @@ function LoanRequestStep({
         ) : (
           prequalificationStatus === "ready" &&
           !prequalificationError && (
-            <p style={{ color: "#6c757d" }}>
+            <p className="text-gray-600 text-sm">
               Complete the form to unlock AI-driven guidance.
             </p>
           )
         )}
       </div>
 
-      <div
-        style={{
-          marginTop: "24px",
-          padding: "20px",
-          borderRadius: "10px",
-          border: "1px solid #e3e3e3",
-          backgroundColor: "#f4f7fb",
-          boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Equipment Intelligence</h3>
+      <div className="mt-8 p-6 rounded-lg border border-gray-500 bg-white shadow-sm">
+        <h3 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
+          <AlertTriangle size={20} className="text-black" />
+          Equipment Intelligence
+        </h3>
         {equipmentIntelligenceStatus === "loading" && (
-          <p style={{ color: "#6c757d" }}>Gathering equipment context...</p>
+          <p className="text-gray-600">Gathering equipment context...</p>
         )}
         {equipmentIntelligenceError && (
-          <div
-            style={{
-              marginBottom: "12px",
-              padding: "10px",
-              borderRadius: "6px",
-              background: "#fff3cd",
-              color: "#856404",
-              border: "1px solid #ffeeba",
-            }}
-          >
-            {equipmentIntelligenceError}
+          <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm flex gap-2">
+            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+            <span>{equipmentIntelligenceError}</span>
           </div>
         )}
         {equipmentIntelligence ? (
-          <div style={{ display: "grid", gap: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>
-                <strong>Estimated Value:</strong>{" "}
-                {formatCurrency(equipmentIntelligence.valuation?.blended_value || 0)}
+          <div className="space-y-3">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700">Estimated Value</p>
+                <p className="text-2xl font-bold text-black">
+                  {formatCurrency(equipmentIntelligence.valuation?.blended_value || 0)}
+                </p>
               </div>
-              <div>
-                <strong>Confidence:</strong>{" "}
-                <span style={{ fontWeight: "bold" }}>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700">Confidence Level</p>
+                <p className="text-2xl font-bold text-black">
                   {Math.round((equipmentIntelligence.overall_confidence || 0) * 100)}%
-                </span>
+                </p>
               </div>
             </div>
-            <div>
-              <strong>Serial Validity:</strong>{" "}
-              <span>
-                {equipmentIntelligence.serial_number?.confidence >= 0.8 ? "High" : "Medium"}
-              </span>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Serial Validity</p>
+                <p className="text-sm font-semibold text-black">
+                  {equipmentIntelligence.serial_number?.confidence >= 0.8 ? "✓ High" : "⚠ Medium"}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700 mb-2">History Status</p>
+                <p className="text-sm font-semibold text-black">
+                  {equipmentIntelligence.history?.hour_consistency === "inconsistent"
+                    ? "⚠ Inconsistent Hours"
+                    : "✓ Normal"}
+                </p>
+              </div>
             </div>
-            <div>
-              <strong>History Flags:</strong>{" "}
-              {equipmentIntelligence.history?.hour_consistency === "inconsistent"
-                ? "Inconsistent Hours"
-                : "None"}
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Predicted Resale (36 months)</p>
+              <p className="text-xl font-bold text-black">
+                {formatCurrency(equipmentIntelligence.predictive_resale?.predicted_resale || 0)}
+              </p>
             </div>
-            <div>
-              <strong>Predicted Resale (36 months):</strong>{" "}
-              {formatCurrency(equipmentIntelligence.predictive_resale?.predicted_resale || 0)}
-            </div>
-            <div>
-              <strong>Risk Flags:</strong>{" "}
-              {equipmentIntelligence.risk_flags.length > 0
-                ? equipmentIntelligence.risk_flags.join(", ")
-                : "None"}
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Risk Flags</p>
+              <p className="text-sm text-gray-700">
+                {equipmentIntelligence.risk_flags.length > 0
+                  ? equipmentIntelligence.risk_flags.join(", ")
+                  : "✓ None"}
+              </p>
             </div>
           </div>
         ) : (
           equipmentIntelligenceStatus === "ready" &&
           !equipmentIntelligenceError && (
-            <p style={{ color: "#6c757d" }}>Awaiting equipment intelligence...</p>
+            <p className="text-gray-600 text-sm">Awaiting equipment intelligence...</p>
           )
         )}
       </div>
 
       {/* Navigation */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "30px" }}>
+      <div className="flex justify-between gap-4 mt-8">
         <button 
           onClick={prevStep}
-          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer" }}
+          className="px-6 py-3 font-semibold text-black bg-gray-200 hover:bg-gray-300 rounded-lg transition"
         >
           Back
         </button>
         <button 
           onClick={handleSubmit}
-          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer", backgroundColor: "#007bff", color: "white", border: "none" }}
+          className="px-6 py-3 font-semibold text-white bg-black hover:bg-gray-800 rounded-lg transition"
         >
           Next
         </button>

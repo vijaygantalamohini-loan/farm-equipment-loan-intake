@@ -3,6 +3,7 @@ import { loansAPI, APIError } from "./services/api";
 import { v4 as uuidv4 } from "uuid";
 import { validateBorrower, validateDealer, validateLoan, validateDocuments } from "./validation/schemas";
 import errorBus from "./utils/errorBus";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import BorrowerInfoStep from "./components/BorrowerInfoStep";
 import CoBorrowerInfoStep from "./components/CoBorrowerInfoStep";
 import DealerInfoStep from "./components/DealerInfoStep";
@@ -11,7 +12,6 @@ import DocumentsAndConsentsStep from "./components/DocumentsAndConsentsStep";
 import SidebarSteps from "./components/SidebarSteps";
 import ConfirmationStep from "./components/ConfirmationStep";
 import {
-  normalizeAddress,
   normalizePerson,
   normalizeDealer,
   normalizeAsset,
@@ -536,110 +536,112 @@ function LoanApplicationWizard({ user, token, editingApplicationId, onBack, onVi
   }
 
   return (
-    <div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        padding: '1rem 2rem',
-        background: 'white'
-      }}>
-        <div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+      {/* Header */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Title Bar */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            {(() => {
+              const totalSteps = formData.hasCoBorrower ? 6 : 5;
+              const displayStep = formData.hasCoBorrower ? step : (step >= 3 ? step - 1 : step);
+              return (
+                <>
+                  <h2 className="text-2xl font-black mb-1">
+                    {editingApplicationId ? 'Resume' : 'New'} Loan Application - Step {displayStep} of {totalSteps}
+                  </h2>
+                  {applicationNumber && (
+                    <p className="text-sm text-gray-500">(App #: {applicationNumber})</p>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="px-5 py-2.5 bg-gray-200 hover:bg-gray-300 text-black font-bold text-sm rounded-xl transition-colors"
+            >
+              Back to Dashboard
+            </button>
+          )}
+        </div>
+
+        {/* Debug Panel - Development Only */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-6">
+            <button 
+              onClick={() => setDebugOpen(v => !v)}
+              className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg transition-colors"
+            >
+              {debugOpen ? 'Hide' : 'Show'} Debug
+            </button>
+            {debugOpen && (
+              <div className="mt-3 p-4 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                <div>Idempotency Key: {lastSaveInfo?.idempotencyKey || 'n/a'}</div>
+                <div>Last Save: {lastSaveInfo ? `${lastSaveInfo.status} at ${lastSaveInfo.timestamp}` : 'n/a'}</div>
+                <div>Missing Fields: {Object.keys(missingFields).length}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        <div className="mb-8">
           {(() => {
             const totalSteps = formData.hasCoBorrower ? 6 : 5;
             const displayStep = formData.hasCoBorrower ? step : (step >= 3 ? step - 1 : step);
             return (
-              <>
-          <h2 style={{ margin: 0 }}>
-            {editingApplicationId ? 'Resume' : 'New'} Loan Application - Step {displayStep} of {totalSteps}
-            {applicationNumber && (
-              <span style={{ 
-                fontSize: '0.8em', 
-                color: '#666', 
-                marginLeft: '1rem',
-                fontWeight: 'normal'
-              }}>
-                (App #: {applicationNumber})
-              </span>
-            )}
-          </h2>
-              <progress value={displayStep} max={totalSteps} style={{ width: '300px', marginTop: '0.5rem' }}></progress>
-              </>
-            );
-          })()}
-        </div>
-        {onBack && (
-          <button 
-            onClick={onBack}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-             Back to Dashboard
-          </button>
-        )}
-      </div>
-
-      {process.env.NODE_ENV === 'development' && (
-        <div style={{ padding: '0.5rem 2rem' }}>
-          <button onClick={() => setDebugOpen(v => !v)} style={{ border: '1px solid #ccc', background: '#f8f9fa', padding: '6px 10px', borderRadius: '4px' }}>
-            {debugOpen ? 'Hide' : 'Show'} Debug
-          </button>
-          {debugOpen && (
-            <div style={{ marginTop: '8px', background: '#fff', border: '1px solid #eee', borderRadius: '6px', padding: '10px' }}>
-              <div>Idempotency Key (last save): {lastSaveInfo?.idempotencyKey || 'n/a'}</div>
-              <div>Last Save: {lastSaveInfo ? `${lastSaveInfo.status} at ${lastSaveInfo.timestamp}` : 'n/a'}</div>
-              <div>Missing Fields (current step): {Object.keys(missingFields).length}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '20px', padding: '0 2rem' }}>
-        <div style={{ flex: 1 }}>
-          {(() => {
-            // Only show missing fields relevant to the current step
-            const sectionForStep = (
-              step === 1 ? 'borrower' :
-              step === 2 ? 'coborrower' :
-              step === 3 ? 'dealer' :
-              step === 4 ? 'loan' :
-              step === 5 ? 'documents' :
-              null
-            );
-
-            if (!sectionForStep) return null;
-            // If co-borrower step is disabled, do not show its missing fields at step 2
-            if (step === 2 && !formData.hasCoBorrower) return null;
-
-            // Only show after the user has attempted to proceed/validate this section
-            if (!attemptedSections[sectionForStep]) return null;
-
-            const fields = (missingFields && missingFields[sectionForStep]) || [];
-            if (!fields || fields.length === 0) return null;
-
-            const labels = {
-              borrower: 'Borrower',
-              coborrower: 'Co-Borrower',
-              dealer: 'Dealer',
-              loan: 'Equipment & Deal',
-              documents: 'Documents & Consents',
-            };
-
-            return (
-              <div style={{ margin: '1rem 0', padding: '0.75rem 1rem', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '4px' }}>
-                <strong>Missing fields:</strong>{' '}
-                <span style={{ marginRight: '12px' }}>
-                  {labels[sectionForStep]}: {fields.join(', ')}
-                </span>
+              <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-black h-full transition-all duration-300"
+                  style={{ width: `${(displayStep / totalSteps) * 100}%` }}
+                />
               </div>
             );
           })()}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Main Form Area */}
+          <div className="lg:col-span-3">
+            <div className="bg-white border-2 border-black rounded-2xl p-8">
+{/* Missing Fields Banner */}
+              {(() => {
+                const sectionForStep = (
+                  step === 1 ? 'borrower' :
+                  step === 2 ? 'coborrower' :
+                  step === 3 ? 'dealer' :
+                  step === 4 ? 'loan' :
+                  step === 5 ? 'documents' :
+                  null
+                );
+
+                if (!sectionForStep) return null;
+                if (step === 2 && !formData.hasCoBorrower) return null;
+                if (!attemptedSections[sectionForStep]) return null;
+
+                const fields = (missingFields && missingFields[sectionForStep]) || [];
+                if (!fields || fields.length === 0) return null;
+
+                const labels = {
+                  borrower: 'Borrower',
+                  coborrower: 'Co-Borrower',
+                  dealer: 'Dealer',
+                  loan: 'Equipment & Deal',
+                  documents: 'Documents & Consents',
+                };
+
+                return (
+                  <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Missing fields in {labels[sectionForStep]}:</strong> {fields.join(', ')}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Step Content */}
 
           {step === 1 && (
             <BorrowerInfoStep
@@ -732,51 +734,63 @@ function LoanApplicationWizard({ user, token, editingApplicationId, onBack, onVi
               }}
             />
           )}
-        </div>
 
-        <SidebarSteps
-          step={step}
-          formData={formData}
-          missingFields={missingFields}
-          onStepClick={(n) => {
-            // Allow forward navigation when resuming an existing application
-            // up to the first incomplete step, so users can jump directly to fill it.
-            if (n > step) {
-              const isCoBorrowerEnabled = !!formData.hasCoBorrower;
-              const getMissingForStep = (s) => {
-                try {
-                  if (s === 1) return validateBorrower(formData.borrower);
-                  if (s === 2) return isCoBorrowerEnabled ? validateBorrower(formData.coBorrower) : [];
-                  if (s === 3) return validateDealer(formData.dealer);
-                  if (s === 4) return validateLoan(formData.loan);
-                  if (s === 5) {
-                    const docObj = Array.isArray(formData.documents)
-                      ? { documents: formData.documents, consents: formData.consents || {} }
-                      : (formData.documents || { documents: [], consents: { creditCheck: false, shareWithLenders: false } });
-                    return validateDocuments(docObj);
-                  }
-                } catch {}
-                return [];
-              };
-              const stepsToCheck = [1, isCoBorrowerEnabled ? 2 : null, 3].filter(Boolean);
-              const firstIncomplete = (() => {
-                for (const s of stepsToCheck) {
-                  const missing = getMissingForStep(s) || [];
-                  if (Array.isArray(missing) && missing.length > 0) return s;
-                }
-                // If earlier steps are ready, the next actionable section is 4 (Equipment & Deal)
-                return 4;
-              })();
-              if (n <= firstIncomplete) {
-                setStep(n);
-                return;
-              }
-              try { alert('Please complete earlier sections before jumping further ahead.'); } catch {}
-              return;
-            }
-            setStep(n);
-          }}
-        />
+              {/* Navigation Buttons */}
+            </div>
+          </div>
+
+          {/* Steps Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-white border-2 border-black rounded-2xl p-6 sticky top-6">
+              <h3 className="text-lg font-black mb-4">Steps</h3>
+              <div className="space-y-3">
+                <SidebarSteps
+                  step={step}
+                  formData={formData}
+                  missingFields={missingFields}
+                  onStepClick={(n) => {
+                    // Allow forward navigation when resuming an existing application
+                    // up to the first incomplete step, so users can jump directly to fill it.
+                    if (n > step) {
+                      const isCoBorrowerEnabled = !!formData.hasCoBorrower;
+                      const getMissingForStep = (s) => {
+                        try {
+                          if (s === 1) return validateBorrower(formData.borrower);
+                          if (s === 2) return isCoBorrowerEnabled ? validateBorrower(formData.coBorrower) : [];
+                          if (s === 3) return validateDealer(formData.dealer);
+                          if (s === 4) return validateLoan(formData.loan);
+                          if (s === 5) {
+                            const docObj = Array.isArray(formData.documents)
+                              ? { documents: formData.documents, consents: formData.consents || {} }
+                              : (formData.documents || { documents: [], consents: { creditCheck: false, shareWithLenders: false } });
+                            return validateDocuments(docObj);
+                          }
+                        } catch {}
+                        return [];
+                      };
+                      const stepsToCheck = [1, isCoBorrowerEnabled ? 2 : null, 3].filter(Boolean);
+                      const firstIncomplete = (() => {
+                        for (const s of stepsToCheck) {
+                          const missing = getMissingForStep(s) || [];
+                          if (Array.isArray(missing) && missing.length > 0) return s;
+                        }
+                        // If earlier steps are ready, the next actionable section is 4 (Equipment & Deal)
+                        return 4;
+                      })();
+                      if (n <= firstIncomplete) {
+                        setStep(n);
+                        return;
+                      }
+                      try { alert('Please complete earlier sections before jumping further ahead.'); } catch {}
+                      return;
+                    }
+                    setStep(n);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

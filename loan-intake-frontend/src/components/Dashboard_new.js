@@ -50,7 +50,7 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
   const ApplicationCard = ({ app, columnType }) => (
     <div className="group relative bg-white border-2 border-black rounded-2xl p-5 hover:shadow-xl hover:shadow-black/5 transition-all duration-300 hover:-translate-y-0.5">
       <div className="absolute top-0 right-0 w-16 h-16 bg-black rounded-bl-full opacity-5"></div>
-
+      
       <div className="relative">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -98,7 +98,7 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
         </div>
 
         {(app.status === 'draft' || app.status === 'in_progress') && (
-          <button
+          <button 
             onClick={() => onEditApplication?.(app.id)}
             className="w-full bg-black hover:bg-gray-900 text-white py-2.5 rounded-xl font-bold text-xs transition-all duration-200 flex items-center justify-center gap-2"
           >
@@ -108,7 +108,7 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
         )}
 
         {app.status === 'submitted' && (
-          <button
+          <button 
             onClick={() => onViewOffers?.(app.id)}
             className="w-full bg-black hover:bg-gray-900 text-white py-2.5 rounded-xl font-bold text-xs transition-all duration-200 flex items-center justify-center gap-2"
           >
@@ -142,7 +142,7 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error loading dashboard: {error.message}</p>
-          <button
+          <button 
             className="bg-black hover:bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-xl"
             onClick={fetchDashboard}
           >
@@ -163,9 +163,9 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
 
   const stats = [
     { value: summary.total || 0, label: 'Total Applications', color: 'bg-white', textColor: 'text-black', icon: FileText },
-    { value: summary.in_progress || 0, label: 'In Progress', color: 'bg-yellow-400', textColor: 'text-yellow-950', icon: Clock },
-    { value: summary.submitted || 0, label: 'Submitted', color: 'bg-orange-400', textColor: 'text-orange-950', icon: TrendingUp },
-    { value: summary.funded || 0, label: 'Funded', color: 'bg-green-400', textColor: 'text-green-950', icon: CheckCircle },
+    { value: summary.in_progress || 0, label: 'In Progress', color: 'bg-white', textColor: 'text-black', icon: Clock },
+    { value: summary.submitted || 0, label: 'Submitted', color: 'bg-white', textColor: 'text-black', icon: TrendingUp },
+    { value: summary.funded || 0, label: 'Funded', color: 'bg-white', textColor: 'text-black', icon: CheckCircle },
   ];
 
   return (
@@ -179,7 +179,7 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
             </div>
             <p className="text-sm text-gray-600">Welcome back, <span className="font-bold text-black">{salespersonName}</span></p>
           </div>
-          <button
+          <button 
             onClick={() => onStartNewApplication?.()}
             className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-xl shadow-black/10 hover:shadow-black/20 transition-all duration-200 flex items-center gap-2"
           >
@@ -205,8 +205,8 @@ function Dashboard({ user, token, onStartNewApplication, onEditApplication, onVi
           })}
         </div>
 
-        {/* Three Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Three Column Layout - Using Inline Style to Force Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
           {/* In Progress Column */}
           <div className="bg-yellow-400 rounded-2xl p-6 space-y-4">
             <div className="pb-2">

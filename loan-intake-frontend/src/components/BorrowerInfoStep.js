@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { autoValidateAddress, createAddressChangeHandler, fetchAddressSuggestions } from "../utils/addressUtils";
 import { addressAPI, API_BASE } from "../services/api";
+import { Upload, ChevronDown, AlertCircle, CheckCircle, Search } from "lucide-react";
 
 const OTHER_OPTION_VALUE = "__other__";
 
@@ -121,7 +122,7 @@ const formatBorrowerMissingField = (field, canonicalOverride) => {
   }
   const token = (raw.split(".").pop() || raw)
     .replace(/([A-Z])/g, " $1")
-    .replace(/[_\-]+/g, " ")
+    .replace(/[_-]+/g, " ")
     .trim();
   if (!token) return null;
   return token.charAt(0).toUpperCase() + token.slice(1);
@@ -326,6 +327,7 @@ function BorrowerInfoStep({
         emitBorrowerDraft(nextBorrower, buildLoanNaicsMeta(initialCode));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData]);
 
   useEffect(() => {
@@ -403,8 +405,10 @@ function BorrowerInfoStep({
         clearTimeout(operationPurposeTimeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [borrower.operationPurpose]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const code = (borrower.naicsCode || "").toString().trim();
     if (!code) {
@@ -678,377 +682,273 @@ function BorrowerInfoStep({
   };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-      <h2>Borrower Information</h2>
-      <p style={{ color: "#666", marginBottom: "20px" }}>
-        Scan your ID for quick entry or enter your information manually.
-      </p>
+    <div className="mx-auto px-4 sm:px-6 py-8 bg-white">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-black mb-2">Borrower Information</h1>
+        <p className="text-gray-700">
+          Scan your ID for quick entry or enter your information manually.
+        </p>
+      </div>
 
+      {/* Missing Fields Alert */}
       {missingFriendly.length > 0 && (
-        <div
-          style={{
-            marginBottom: "20px",
-            padding: "12px 16px",
-            backgroundColor: "#fff5f5",
-            border: "1px solid #f5c2c7",
-            borderRadius: "6px",
-          }}
-        >
-          <div style={{ fontWeight: "bold", marginBottom: missingFriendly.length > 1 ? "8px" : "0" }}>
-            Finish these borrower details to keep moving:
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-semibold text-black mb-2">
+                Finish these borrower details to keep moving:
+              </div>
+              {missingFriendly.length === 1 ? (
+                <p className="text-gray-700 text-sm">{missingFriendly[0]}</p>
+              ) : (
+                <ul className="space-y-1">
+                  {missingFriendly.map(label => (
+                    <li key={label} className="text-gray-700 text-sm">• {label}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-          {missingFriendly.length === 1 ? (
-            <div>{missingFriendly[0]}</div>
-          ) : (
-            <ul style={{ margin: 0, paddingLeft: "20px" }}>
-              {missingFriendly.map(label => (
-                <li key={label}>{label}</li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 
-      <div style={{ marginBottom: "16px", display: "flex", gap: "16px", alignItems: "center" }}>
-        <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="radio"
-            name="borrowerType"
-            value="individual"
-            checked={borrowerType === "individual"}
-            onChange={() => {
-              setBorrowerType("individual");
-              emitDraftWithMeta(borrower, { borrowerType: "individual" });
-            }}
-          />
-          Individual
-        </label>
-        <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="radio"
-            name="borrowerType"
-            value="business"
-            checked={borrowerType === "business"}
-            onChange={() => {
-              setBorrowerType("business");
-              emitDraftWithMeta(borrower, { borrowerType: "business" });
-            }}
-          />
-          Business
-        </label>
-        <label style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={hasCoBorrower}
-            onChange={(e) => {
-              const val = e.target.checked;
-              setHasCoBorrower(val);
-              emitDraftWithMeta(borrower, { hasCoBorrower: val });
-            }}
-          />
-          Add co-borrower/guarantor
-        </label>
+      {/* Borrower Type & Co-Borrower Selection */}
+      <div className="mb-6 p-4 border border-gray-300 rounded-lg">
+        <h3 className="font-semibold text-black mb-4">Select borrower type</h3>
+        <div className="space-y-3 sm:space-y-0 sm:flex sm:gap-6 flex-wrap">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="borrowerType"
+              value="individual"
+              checked={borrowerType === "individual"}
+              onChange={() => {
+                setBorrowerType("individual");
+                emitDraftWithMeta(borrower, { borrowerType: "individual" });
+              }}
+              className="w-4 h-4 accent-black"
+            />
+            <span className="text-gray-700">Individual</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="borrowerType"
+              value="business"
+              checked={borrowerType === "business"}
+              onChange={() => {
+                setBorrowerType("business");
+                emitDraftWithMeta(borrower, { borrowerType: "business" });
+              }}
+              className="w-4 h-4 accent-black"
+            />
+            <span className="text-gray-700">Business</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasCoBorrower}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setHasCoBorrower(val);
+                emitDraftWithMeta(borrower, { hasCoBorrower: val });
+              }}
+              className="w-4 h-4 accent-black"
+            />
+            <span className="text-gray-700">Add co-borrower/guarantor</span>
+          </label>
+        </div>
       </div>
 
-      <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
+      {/* Scan / Upload Button */}
+      <div className="mb-6">
         <button
           onClick={() => setMode("scan")}
-          style={{
-            padding: "10px 20px",
-            fontSize: "14px",
-            cursor: "pointer",
-            backgroundColor: mode === "scan" ? "#007bff" : "#f0f0f0",
-            color: mode === "scan" ? "white" : "black",
-            border: "1px solid #ccc",
-          }}
+          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 font-semibold rounded-lg transition-all ${
+            mode === "scan"
+              ? "bg-black text-white"
+              : "bg-gray-200 text-black hover:bg-gray-300"
+          }`}
         >
+          <Upload size={20} />
           Scan ID / Upload Image
         </button>
       </div>
 
+      {/* Scan Mode */}
       {mode === "scan" && (
-        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f9f9f9", border: "1px solid #ddd" }}>
-          <input type="file" accept="image/*" onChange={handleFileUpload} style={{ marginBottom: "10px" }} />
-          <p style={{ margin: 0, fontSize: "14px", color: "#666" }}>Upload or take a picture of your ID to auto-fill fields.</p>
+        <div className="mb-6 p-6 bg-gray-100 border-2 border-dashed border-gray-400 rounded-lg">
+          <div className="flex flex-col items-center gap-4">
+            <Upload size={40} className="text-gray-600" />
+            <div className="text-center">
+              <label className="inline-block px-4 py-2 bg-black text-white rounded-lg cursor-pointer hover:bg-gray-800 transition">
+                Choose Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <p className="mt-3 text-sm text-gray-600">
+                Upload or take a picture of your ID to auto-fill fields.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
+      {/* Manual Entry Mode */}
       {mode === "manual" && (
-        <div>
+        <div className="space-y-8">
+          {/* Business Type Form */}
           {borrowerType === "business" ? (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Legal Business Name *
-                  </label>
-                  <input
-                    placeholder="ABC Farms LLC"
-                    value={borrower.legalName}
-                    onChange={e => handleChange("legalName", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("legalName") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  {isMissing("legalName") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Entity Type *
-                  </label>
-                  <input
-                    placeholder="LLC, S-Corp, Partnership"
-                    value={borrower.entityType}
-                    onChange={e => handleChange("entityType", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("entityType") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  {isMissing("entityType") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
-              </div>
-              <div style={{ marginBottom: "15px" }}>
-                <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                  EIN / TIN *
-                </label>
-                <input
-                  placeholder="12-3456789"
-                  value={borrower.tin}
-                  onChange={e => handleChange("tin", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    fontSize: "14px",
-                    border: isMissing("tin") ? "1px solid #dc3545" : "1px solid #ced4da",
-                    borderRadius: "4px",
-                  }}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  label="Legal Business Name *"
+                  placeholder="ABC Farms LLC"
+                  value={borrower.legalName}
+                  onChange={e => handleChange("legalName", e.target.value)}
+                  error={isMissing("legalName")}
                 />
-                {isMissing("tin") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
+                <FormField
+                  label="Entity Type *"
+                  placeholder="LLC, S-Corp, Partnership"
+                  value={borrower.entityType}
+                  onChange={e => handleChange("entityType", e.target.value)}
+                  error={isMissing("entityType")}
+                />
               </div>
 
-              <h3 style={{ marginTop: "10px", marginBottom: "10px" }}>Authorized Signer</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Name *
-                  </label>
-                  <input
+              <FormField
+                label="EIN / TIN *"
+                placeholder="12-3456789"
+                value={borrower.tin}
+                onChange={e => handleChange("tin", e.target.value)}
+                error={isMissing("tin")}
+              />
+
+              {/* Authorized Signer Section */}
+              <div>
+                <h3 className="text-xl font-bold text-black mb-4">Authorized Signer</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    label="Name *"
                     placeholder="Jane Doe"
                     value={borrower.signerName}
                     onChange={e => handleChange("signerName", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("signerName") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
+                    error={isMissing("signerName")}
                   />
-                  {isMissing("signerName") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Title *
-                  </label>
-                  <input
+                  <FormField
+                    label="Title *"
                     placeholder="Owner, CFO"
                     value={borrower.signerTitle}
                     onChange={e => handleChange("signerTitle", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("signerTitle") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
+                    error={isMissing("signerTitle")}
                   />
-                  {isMissing("signerTitle") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
                 </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Signer Email *
-                  </label>
-                  <input
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  <FormField
+                    label="Signer Email *"
                     placeholder="signer@example.com"
                     value={borrower.signerEmail}
                     onChange={e => handleChange("signerEmail", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("signerEmail") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
+                    error={isMissing("signerEmail")}
                   />
-                  {isMissing("signerEmail") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Signer Phone *
-                  </label>
-                  <input
+                  <FormField
+                    label="Signer Phone *"
                     placeholder="(555) 123-4567"
                     value={borrower.signerPhone}
                     onChange={e => handleChange("signerPhone", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("signerPhone") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
+                    error={isMissing("signerPhone")}
                   />
-                  {isMissing("signerPhone") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
                 </div>
               </div>
             </>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    First Name *
-                  </label>
-                  <input
-                    placeholder="First Name"
-                    value={borrower.firstName}
-                    onChange={e => handleChange("firstName", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("firstName") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  {isMissing("firstName") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Last Name *
-                  </label>
-                  <input
-                    placeholder="Last Name"
-                    value={borrower.lastName}
-                    onChange={e => handleChange("lastName", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("lastName") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                  {isMissing("lastName") && <div style={{ color: "red", fontSize: "12px" }}>Required</div>}
-                </div>
+              {/* Individual Type Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  label="First Name *"
+                  placeholder="First Name"
+                  value={borrower.firstName}
+                  onChange={e => handleChange("firstName", e.target.value)}
+                  error={isMissing("firstName")}
+                />
+                <FormField
+                  label="Last Name *"
+                  placeholder="Last Name"
+                  value={borrower.lastName}
+                  onChange={e => handleChange("lastName", e.target.value)}
+                  error={isMissing("lastName")}
+                />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    Date of Birth *
-                  </label>
-                  <input
-                    type="date"
-                    value={borrower.dateOfBirth}
-                    onChange={e => handleChange("dateOfBirth", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("dateOfBirth") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                    SSN *
-                  </label>
-                  <input
-                    placeholder="123-45-6789"
-                    value={borrower.ssn}
-                    onChange={e => handleChange("ssn", e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "8px",
-                      fontSize: "14px",
-                      border: isMissing("ssn") ? "1px solid #dc3545" : "1px solid #ced4da",
-                      borderRadius: "4px",
-                    }}
-                  />
-                </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  label="Date of Birth *"
+                  type="date"
+                  value={borrower.dateOfBirth}
+                  onChange={e => handleChange("dateOfBirth", e.target.value)}
+                />
+                <FormField
+                  label="SSN *"
+                  placeholder="123-45-6789"
+                  value={borrower.ssn}
+                  onChange={e => handleChange("ssn", e.target.value)}
+                />
               </div>
             </>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Email *
-              </label>
-              <input
-                placeholder="email@example.com"
-                value={borrower.email}
-                onChange={e => handleChange("email", e.target.value)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
-              />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Phone *
-              </label>
-              <input
-                placeholder="(555) 123-4567"
-                value={borrower.phone}
-                onChange={e => handleChange("phone", e.target.value)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
-              />
-            </div>
-          </div>
-
-          <h3 style={{ marginTop: "25px", marginBottom: "15px" }}>Address</h3>
-
-          <div style={{ marginBottom: "15px" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Street Address *
-            </label>
-            <input
-              placeholder="123 Main Street"
-              value={borrower.address.street}
-              onChange={e => handleAddressInput("street", e.target.value)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px" }}
+          {/* Contact Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              label="Email *"
+              placeholder="email@example.com"
+              value={borrower.email}
+              onChange={e => handleChange("email", e.target.value)}
             />
-            {addressSuggestions.length > 0 && (
-              <div style={{ border: "1px solid #ddd", borderRadius: "4px", marginTop: "8px", background: "#fff" }}>
-                {addressSuggestions.map((s, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => applyAddressSuggestion(s)}
-                    style={{ padding: "8px", cursor: "pointer", borderBottom: idx === addressSuggestions.length - 1 ? "none" : "1px solid #eee" }}
-                  >
-                    {s.text || `${s.street || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`}
-                  </div>
-                ))}
-              </div>
-            )}
+            <FormField
+              label="Phone *"
+              placeholder="(555) 123-4567"
+              value={borrower.phone}
+              onChange={e => handleChange("phone", e.target.value)}
+            />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                City *
-              </label>
-              <input
+          {/* Address Section */}
+          <div>
+            <h3 className="text-xl font-bold text-black mb-4">Address</h3>
+            <div className="space-y-4">
+              <FormField
+                label="Street Address *"
+                placeholder="123 Main Street"
+                value={borrower.address.street}
+                onChange={e => handleAddressInput("street", e.target.value)}
+              />
+              {addressSuggestions.length > 0 && (
+                <div className="border border-gray-300 rounded-lg overflow-hidden">
+                  {addressSuggestions.map((s, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => applyAddressSuggestion(s)}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-100 transition text-gray-700 text-sm border-b border-gray-200 last:border-b-0"
+                    >
+                      {s.text || `${s.street || ""}, ${s.city || ""}, ${s.state || ""} ${s.zip || ""}`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              <FormField
+                label="City *"
                 placeholder="City"
                 value={borrower.address.city}
                 onChange={e => {
@@ -1056,15 +956,11 @@ function BorrowerInfoStep({
                   handleAddressChange("city", v);
                   emitBorrowerDraft({ ...borrower, address: { ...borrower.address, city: v } });
                 }}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
               />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                State *
-              </label>
-              <input
+              <FormField
+                label="State *"
                 placeholder="ST"
+                maxLength="2"
                 value={borrower.address.state}
                 onChange={e => {
                   const v = e.target.value;
@@ -1072,16 +968,11 @@ function BorrowerInfoStep({
                   emitBorrowerDraft({ ...borrower, address: { ...borrower.address, state: v } });
                 }}
                 onBlur={validateAddress}
-                maxLength="2"
-                style={{ width: "100%", padding: "8px", fontSize: "14px", textTransform: "uppercase" }}
               />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                ZIP Code *
-              </label>
-              <input
+              <FormField
+                label="ZIP Code *"
                 placeholder="12345"
+                maxLength="10"
                 value={borrower.address.zip}
                 onChange={e => {
                   const v = e.target.value;
@@ -1089,225 +980,221 @@ function BorrowerInfoStep({
                   emitBorrowerDraft({ ...borrower, address: { ...borrower.address, zip: v } });
                 }}
                 onBlur={validateAddress}
-                maxLength="10"
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
               />
             </div>
           </div>
 
-          <h3 style={{ marginTop: "25px", marginBottom: "15px" }}>Employment</h3>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Employer/Business Name *
-              </label>
-              <input
+          {/* Employment Section */}
+          <div>
+            <h3 className="text-xl font-bold text-black mb-4">Employment</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                label="Employer/Business Name *"
                 placeholder="Employer/Business Name"
                 value={borrower.employerName}
                 onChange={e => handleChange("employerName", e.target.value)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
               />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Annual Income ($) *
-              </label>
-              <input
+              <FormField
+                label="Annual Income ($) *"
                 type="number"
                 placeholder="50000"
                 value={borrower.annualIncome}
                 onChange={e => handleChange("annualIncome", e.target.value)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
               />
             </div>
           </div>
 
-          <h3 style={{ marginTop: "25px", marginBottom: "10px" }}>Operational Details</h3>
-          <p style={{ color: "#666", marginTop: "0", marginBottom: "15px", fontSize: "13px" }}>
-            Share a snapshot of the farm&apos;s footprint so lenders understand how the operation runs today.
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-            <div style={{ position: "relative" }}>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "14px" }}>
-                Purpose *
-              </label>
-              <input
-                placeholder="e.g., Dairy farm equipment and operations"
-                value={borrower.operationPurpose}
-                onChange={e => handleOperationPurposeInput(e.target.value)}
-                onFocus={() => setShowOperationPurposeSuggestions(true)}
-                onBlur={() => {
-                  if (suggestionHideTimeoutRef.current) {
-                    clearTimeout(suggestionHideTimeoutRef.current);
-                  }
-                  suggestionHideTimeoutRef.current = setTimeout(() => {
-                    setShowOperationPurposeSuggestions(false);
-                    suggestionHideTimeoutRef.current = null;
-                  }, 120);
-                }}
-                required
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
-              />
-              {showOperationPurposeSuggestions && (borrower.operationPurpose || "").trim().length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "white",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    marginTop: "2px",
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    zIndex: 1000,
-                    boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
-                  }}
-                >
-                  {filteredOperationPurposes.map((suggestion, idx) => (
-                    <div
-                      key={`${suggestion}-${idx}`}
-                      onMouseDown={event => {
-                        event.preventDefault();
-                        handleOperationPurposeInput(suggestion);
-                        setShowOperationPurposeSuggestions(false);
-                      }}
-                      style={{
-                        padding: "10px",
-                        cursor: "pointer",
-                        borderBottom: idx === filteredOperationPurposes.length - 1 ? "none" : "1px solid #eee",
-                        fontSize: "13px",
-                        backgroundColor: "white"
-                      }}
-                      onMouseEnter={event => (event.currentTarget.style.backgroundColor = "#f0f0f0")}
-                      onMouseLeave={event => (event.currentTarget.style.backgroundColor = "white")}
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
-                  {filteredOperationPurposes.length === 0 && (
-                    <div style={{ padding: "10px", fontSize: "12px", color: "#666" }}>
-                      Type a few more keywords to see suggestions.
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {naicsLookupLoading && (
-                <small style={{ display: "block", marginTop: "3px", color: "#007bff", fontSize: "12px" }}>
-                  🔍 Looking up NAICS code...
-                </small>
-              )}
-              {operationNaicsDetails && operationNaicsDetails.description && (
-                <small style={{ display: "block", marginTop: "3px", color: "#28a745", fontSize: "12px", fontWeight: "500" }}>
-                  ✓ {operationNaicsDetails.description}
-                  <span style={{ marginLeft: "8px", color: "#666" }}>({operationNaicsDetails.sector})</span>
-                </small>
-              )}
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold", fontSize: "14px" }}>
-                NAICS Code <span style={{ fontWeight: "normal", fontSize: "12px", color: "#666" }}>(auto-detected)</span>
-              </label>
-              <input
-                type="text"
-                value={naicsDisplayValue}
-                placeholder={naicsLookupLoading ? "Looking up..." : "Enter purpose to auto-detect"}
-                readOnly
-                title={naicsTitle}
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  fontSize: "14px",
-                  backgroundColor: naicsDisplayValue ? "#e9ecef" : "#f8f9fa",
-                  border: "1px solid #ced4da",
-                  color: naicsDisplayValue ? "#495057" : "#999",
-                  cursor: "not-allowed",
-                  fontWeight: naicsDisplayValue ? "500" : "normal"
-                }}
-              />
-            </div>
-          </div>
+          {/* Operational Details */}
+          <div>
+            <h3 className="text-xl font-bold text-black mb-2">Operational Details</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Share a snapshot of the farm's footprint so lenders understand how the operation runs today.
+            </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Years In Operation
-              </label>
-              <input
-                type="number"
-                min="0"
-                placeholder="10"
-                value={borrower.yearsInOperation}
-                onChange={e => handleChange("yearsInOperation", e.target.value)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
-              />
-              <small style={{ color: "#777" }}>Number of years the farm has been active.</small>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-                Farm Legal Entity
-              </label>
-              <select
-                value={farmLegalEntitySelectValue}
-                onChange={e => handleSelectChange("farmLegalEntity", e.target.value, FARM_LEGAL_ENTITY_OPTIONS)}
-                style={{ width: "100%", padding: "8px", fontSize: "14px" }}
-              >
-                <option value="">Select legal structure</option>
-                {FARM_LEGAL_ENTITY_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {farmLegalEntitySelectValue === OTHER_OPTION_VALUE && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Purpose Field with Suggestions */}
+              <div className="relative">
+                <label className="block text-sm font-semibold text-black mb-2">
+                  Purpose *
+                </label>
                 <input
-                  placeholder="Enter legal structure"
-                  value={farmLegalEntityOtherValue}
-                  onChange={e => handleChange("farmLegalEntity", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    fontSize: "14px",
-                    marginTop: "8px",
-                    borderColor: farmLegalEntityOtherHasError ? "red" : "#ccc",
+                  placeholder="e.g., Dairy farm equipment and operations"
+                  value={borrower.operationPurpose}
+                  onChange={e => handleOperationPurposeInput(e.target.value)}
+                  onFocus={() => setShowOperationPurposeSuggestions(true)}
+                  onBlur={() => {
+                    if (suggestionHideTimeoutRef.current) {
+                      clearTimeout(suggestionHideTimeoutRef.current);
+                    }
+                    suggestionHideTimeoutRef.current = setTimeout(() => {
+                      setShowOperationPurposeSuggestions(false);
+                      suggestionHideTimeoutRef.current = null;
+                    }, 120);
                   }}
+                  required
+                  className="w-full px-3 py-2 border-2 border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                 />
-              )}
-              {farmLegalEntityOtherHasError && (
-                <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                  Enter the legal structure when selecting Other.
+                {showOperationPurposeSuggestions && (borrower.operationPurpose || "").trim().length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-500 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                    {filteredOperationPurposes.map((suggestion, idx) => (
+                      <button
+                        key={`${suggestion}-${idx}`}
+                        onMouseDown={event => {
+                          event.preventDefault();
+                          handleOperationPurposeInput(suggestion);
+                          setShowOperationPurposeSuggestions(false);
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 transition text-sm border-b border-gray-200 last:border-b-0"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                    {filteredOperationPurposes.length === 0 && (
+                      <div className="px-4 py-2 text-sm text-gray-600">
+                        Type a few more keywords to see suggestions.
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {naicsLookupLoading && (
+                  <div className="flex items-center gap-2 mt-2 text-blue-600 text-sm">
+                    <Search size={16} className="animate-spin" />
+                    Looking up NAICS code...
+                  </div>
+                )}
+                {operationNaicsDetails && operationNaicsDetails.description && (
+                  <div className="flex items-center gap-2 mt-2 text-green-600 text-sm font-medium">
+                    <CheckCircle size={16} />
+                    {operationNaicsDetails.description}
+                    <span className="text-gray-600">({operationNaicsDetails.sector})</span>
+                  </div>
+                )}
+              </div>
+
+              {/* NAICS Code Field */}
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">
+                  NAICS Code <span className="font-normal text-xs text-gray-600">(auto-detected)</span>
+                </label>
+                <input
+                  type="text"
+                  value={naicsDisplayValue}
+                  placeholder={naicsLookupLoading ? "Looking up..." : "Enter purpose to auto-detect"}
+                  readOnly
+                  title={naicsTitle}
+                  className="w-full px-3 py-2 bg-gray-100 border-2 border-gray-500 rounded-lg text-gray-600 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">
+                  Years In Operation
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="10"
+                  value={borrower.yearsInOperation}
+                  onChange={e => handleChange("yearsInOperation", e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                <p className="text-xs text-gray-600 mt-1">Number of years the farm has been active.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-black mb-2">
+                  Farm Legal Entity
+                </label>
+                <div className="relative">
+                  <select
+                    value={farmLegalEntitySelectValue}
+                    onChange={e => handleSelectChange("farmLegalEntity", e.target.value, FARM_LEGAL_ENTITY_OPTIONS)}
+                    className="w-full px-3 py-2 border-2 border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-black appearance-none bg-white pr-10"
+                  >
+                    <option value="">Select legal structure</option>
+                    {FARM_LEGAL_ENTITY_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
                 </div>
-              )}
+                {farmLegalEntitySelectValue === OTHER_OPTION_VALUE && (
+                  <input
+                    placeholder="Enter legal structure"
+                    value={farmLegalEntityOtherValue}
+                    onChange={e => handleChange("farmLegalEntity", e.target.value)}
+                    className={`w-full px-3 py-2 border-2 rounded-lg mt-2 focus:outline-none focus:ring-2 focus:ring-black ${
+                      farmLegalEntityOtherHasError ? "border-red-500" : "border-gray-500"
+                    }`}
+                  />
+                )}
+                {farmLegalEntityOtherHasError && (
+                  <p className="text-red-600 text-xs mt-1">
+                    Enter the legal structure when selecting Other.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: onBack ? "space-between" : "flex-end",
-          marginTop: "30px",
-        }}
-      >
+      {/* Action Buttons */}
+      <div className="flex flex-col-reverse sm:flex-row justify-between gap-4 mt-10 pt-8 border-t border-gray-300">
         {onBack && (
           <button
             onClick={onBack}
-            style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer" }}
+            className="px-6 py-3 font-semibold text-black bg-gray-200 rounded-lg hover:bg-gray-300 transition"
           >
             Back
           </button>
         )}
         <button
           onClick={handleSubmit}
-          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer", backgroundColor: "#007bff", color: "white", border: "none" }}
+          className="px-6 py-3 font-semibold text-white bg-black rounded-lg hover:bg-gray-800 transition"
         >
           Next
         </button>
       </div>
+    </div>
+  );
+}
+
+// Reusable FormField Component
+function FormField({
+  label,
+  placeholder,
+  type = "text",
+  value,
+  onChange,
+  onBlur,
+  error = false,
+  maxLength,
+  ...props
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-black mb-2">
+        {label}
+      </label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        maxLength={maxLength}
+        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition ${
+          error ? "border-red-500" : "border-gray-500"
+        }`}
+        {...props}
+      />
+      {error && <p className="text-red-600 text-xs mt-1">Required</p>}
     </div>
   );
 }

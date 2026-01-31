@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { autoValidateAddress, createAddressChangeHandler } from "../utils/addressUtils";
+import { Info, Trash2 } from "lucide-react";
 
 function DealerInfoStep({ onNext, nextStep, prevStep, user, initialData = {}, onDraftChange = () => {}, missingFields = [] }) {
   const [dealer, setDealer] = useState({
@@ -179,214 +180,116 @@ function DealerInfoStep({ onNext, nextStep, prevStep, user, initialData = {}, on
   };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "20px" }}>
-      <h2>Dealer Information</h2>
-      <p style={{ color: "#666", marginBottom: "20px" }}>
-        {user?.location && user?.vendor
-          ? "Auto-filled from your profile. This represents your dealership location. You can edit if needed."
-          : "Enter dealership information manually. This will be saved for future applications."
-        }
-      </p>
+    <div className="mx-auto px-4 sm:px-6 py-8 bg-white">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-black mb-2">Dealer Information</h1>
+        <p className="text-gray-700">
+          {user?.location && user?.vendor
+            ? "Auto-filled from your profile. This represents your dealership location. You can edit if needed."
+            : "Enter dealership information manually. This will be saved for future applications."
+          }
+        </p>
+      </div>
 
-      <div style={{ marginBottom: "15px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-          Dealership Name *
-        </label>
-        <input
-          type="text"
+      {/* Dealership Name */}
+      <div className="mb-6">
+        <FormField
+          label="Dealership Name *"
+          placeholder="Enter dealership name"
           value={dealer.dealershipName}
           onChange={(e) => handleChange("dealershipName", e.target.value)}
-          placeholder="Enter dealership name"
-          required
-          style={{
-            width: "100%",
-            padding: "8px",
-            fontSize: "14px",
-            border: isMissing("dealershipName") ? "1px solid #dc3545" : undefined,
-          }}
+          error={isMissing("dealershipName")}
         />
-        {isMissing("dealershipName") && (
-          <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-        )}
       </div>
 
-      <div style={{ marginBottom: "15px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-          Contact Person *
-        </label>
-        <input
-          type="text"
+      {/* Contact Person */}
+      <div className="mb-6">
+        <FormField
+          label="Contact Person *"
+          placeholder="Sales representative name"
           value={dealer.contactPerson}
           onChange={(e) => handleChange("contactPerson", e.target.value)}
-          placeholder="Sales representative name"
-          required
-          style={{
-            width: "100%",
-            padding: "8px",
-            fontSize: "14px",
-            border: isMissing("contactPerson") ? "1px solid #dc3545" : undefined,
-          }}
+          error={isMissing("contactPerson")}
         />
-        {isMissing("contactPerson") && (
-          <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-        )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-        <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            Phone Number *
-          </label>
-          <input
-            type="tel"
-            value={dealer.phoneNumber}
-            onChange={(e) => handleChange("phoneNumber", e.target.value)}
-            placeholder="(555) 123-4567"
-            required
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: isMissing("phoneNumber") ? "1px solid #dc3545" : undefined,
-            }}
-          />
-          {isMissing("phoneNumber") && (
-            <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-          )}
-        </div>
-        <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            Email *
-          </label>
-          <input
-            type="email"
-            value={dealer.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-            placeholder="contact@dealership.com"
-            required
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: isMissing("email") ? "1px solid #dc3545" : undefined,
-            }}
-          />
-          {isMissing("email") && (
-            <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-          )}
-        </div>
-      </div>
-
-      <h3 style={{ marginTop: "25px", marginBottom: "15px" }}>Dealership Address</h3>
-
-      <div style={{ marginBottom: "15px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-          Street Address *
-        </label>
-        <input
-          type="text"
-          value={dealer.address.street}
-          onChange={(e) => handleAddressChange("street", e.target.value)}
-          placeholder="123 Main Street"
-          required
-          style={{
-            width: "100%",
-            padding: "8px",
-            fontSize: "14px",
-            border: isMissing("street") ? "1px solid #dc3545" : undefined,
-          }}
+      {/* Phone & Email */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <FormField
+          label="Phone Number *"
+          type="tel"
+          placeholder="(555) 123-4567"
+          value={dealer.phoneNumber}
+          onChange={(e) => handleChange("phoneNumber", e.target.value)}
+          error={isMissing("phoneNumber")}
         />
-        {isMissing("street") && (
-          <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-        )}
+        <FormField
+          label="Email *"
+          type="email"
+          placeholder="contact@dealership.com"
+          value={dealer.email}
+          onChange={(e) => handleChange("email", e.target.value)}
+          error={isMissing("email")}
+        />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-        <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            City *
-          </label>
-          <input
-            type="text"
+      {/* Address Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold text-black mb-4">Dealership Address</h2>
+
+        <div className="mb-6">
+          <FormField
+            label="Street Address *"
+            placeholder="123 Main Street"
+            value={dealer.address.street}
+            onChange={(e) => handleAddressChange("street", e.target.value)}
+            error={isMissing("street")}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <FormField
+            label="City *"
+            placeholder="City"
             value={dealer.address.city}
             onChange={(e) => handleAddressChange("city", e.target.value)}
-            placeholder="City"
-            required
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: isMissing("city") ? "1px solid #dc3545" : undefined,
-            }}
+            error={isMissing("city")}
           />
-          {isMissing("city") && (
-            <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-          )}
-        </div>
-        <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            State *
-          </label>
-          <input
-            type="text"
+          <FormField
+            label="State *"
+            placeholder="ST"
+            maxLength="2"
             value={dealer.address.state}
             onChange={(e) => handleAddressChange("state", e.target.value)}
             onBlur={validateAddress}
-            placeholder="ST"
-            maxLength="2"
-            required
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              textTransform: "uppercase",
-              border: isMissing("state") ? "1px solid #dc3545" : undefined,
-            }}
+            error={isMissing("state")}
           />
-          {isMissing("state") && (
-            <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-          )}
-        </div>
-        <div>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-            ZIP Code *
-          </label>
-          <input
-            type="text"
+          <FormField
+            label="ZIP Code *"
+            placeholder="12345"
+            maxLength="10"
             value={dealer.address.zip}
             onChange={(e) => handleAddressChange("zip", e.target.value)}
             onBlur={validateAddress}
-            placeholder="12345"
-            maxLength="10"
-            required
-            style={{
-              width: "100%",
-              padding: "8px",
-              fontSize: "14px",
-              border: isMissing("zip") ? "1px solid #dc3545" : undefined,
-            }}
+            error={isMissing("zip")}
           />
-          {isMissing("zip") && (
-            <div style={{ color: "#dc3545", fontSize: "12px", marginTop: "4px" }}>Required</div>
-          )}
         </div>
       </div>
 
-      <div style={{ marginBottom: "15px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-          Dealer License Number
-        </label>
-        <input
-          type="text"
+      {/* Additional Info */}
+      <div className="mb-6">
+        <FormField
+          label="Dealer License Number"
+          placeholder="Optional - State dealer license number"
           value={dealer.dealerLicenseNumber}
           onChange={(e) => handleChange("dealerLicenseNumber", e.target.value)}
-          placeholder="Optional - State dealer license number"
-          style={{ width: "100%", padding: "8px", fontSize: "14px" }}
         />
       </div>
 
-      <div style={{ marginBottom: "20px" }}>
-        <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+      {/* Notes */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-black mb-2">
           Additional Notes
         </label>
         <textarea
@@ -394,48 +297,79 @@ function DealerInfoStep({ onNext, nextStep, prevStep, user, initialData = {}, on
           onChange={(e) => handleChange("notes", e.target.value)}
           placeholder="Any additional information about the dealer or transaction"
           rows="3"
-          style={{ width: "100%", padding: "8px", fontSize: "14px", fontFamily: "inherit" }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition font-inherit"
         />
       </div>
 
+      {/* Profile Info Alert */}
       {(user?.location && user?.vendor) && (
-        <div style={{ marginBottom: "20px", padding: "10px", backgroundColor: "#d1ecf1", border: "1px solid #17a2b8", borderRadius: "4px" }}>
-          <p style={{ margin: "0 0 10px 0", fontSize: "14px" }}>
-            Using your profile information ({user.vendor.name} - {user.location.name})
-            <button 
+        <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
+          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-gray-800">
+              Using your profile information ({user.vendor.name} - {user.location.name})
+            </p>
+            <button
               type="button"
               onClick={handleClearSaved}
-              style={{ 
-                marginLeft: "10px",
-                padding: "5px 10px", 
-                fontSize: "12px", 
-                cursor: "pointer",
-                backgroundColor: "#dc3545",
-                color: "white",
-                border: "none",
-                borderRadius: "4px"
-              }}
+              className="mt-2 flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
             >
+              <Trash2 size={16} />
               Clear Saved Info
             </button>
-          </p>
+          </div>
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "30px" }}>
+      {/* Action Buttons */}
+      <div className="flex flex-col-reverse sm:flex-row justify-between gap-4 mt-10 pt-8 border-t border-gray-300">
         <button
           onClick={prevStep}
-          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer" }}
+          className="px-6 py-3 font-semibold text-black bg-gray-200 rounded-lg hover:bg-gray-300 transition"
         >
           Back
         </button>
         <button
           onClick={handleSubmit}
-          style={{ padding: "10px 30px", fontSize: "16px", cursor: "pointer", backgroundColor: "#007bff", color: "white", border: "none" }}
+          className="px-6 py-3 font-semibold text-white bg-black rounded-lg hover:bg-gray-800 transition"
         >
           Next
         </button>
       </div>
+    </div>
+  );
+}
+
+// Reusable FormField Component
+function FormField({
+  label,
+  placeholder,
+  type = "text",
+  value,
+  onChange,
+  onBlur,
+  error = false,
+  maxLength,
+  ...props
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-black mb-2">
+        {label}
+      </label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        maxLength={maxLength}
+        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-black transition ${
+          error ? "border-red-500" : "border-gray-500"
+        }`}
+        {...props}
+      />
+      {error && <p className="text-red-600 text-xs mt-1">Required</p>}
     </div>
   );
 }

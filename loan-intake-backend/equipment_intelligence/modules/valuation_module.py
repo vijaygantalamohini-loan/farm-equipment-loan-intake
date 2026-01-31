@@ -88,15 +88,19 @@ def valuation_module(make, model, year, hours, region, condition):
     predictor = _load_model()
     ml_value = None
     if predictor:
-        X = {
-            "make": make or "Unknown",
-            "model": model or "Unknown",
-            "region": region or "NA",
-            "condition": condition or "Good",
-            "year": safe_year or current_year,
-            "hours": safe_hours or 0,
-        }
-        ml_value = predictor.predict([list(X.values())])[0]
+        try:
+            import pandas as pd
+            X = pd.DataFrame({
+                "make": [make or "Unknown"],
+                "model": [model or "Unknown"],
+                "region": [region or "NA"],
+                "condition": [condition or "Good"],
+                "year": [safe_year or current_year],
+                "hours": [safe_hours or 0],
+            })
+            ml_value = predictor.predict(X)[0]
+        except Exception:
+            ml_value = None
 
     blended = base
     if ml_value:
