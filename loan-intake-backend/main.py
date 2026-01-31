@@ -30,6 +30,9 @@ from routers import (
     lender_routes,
     prequalification_routes,
     admin_routes,
+    email_routes,
+    notification_routes,
+    underwriting_routes,
     debug_auth_routes,
     callback_spa,
     health,
@@ -155,6 +158,9 @@ def create_app() -> FastAPI:
     app.include_router(equipment_router)
     app.include_router(prequalification_routes.router)
     app.include_router(admin_routes.router)
+    app.include_router(email_routes.router)
+    app.include_router(notification_routes.router)
+    app.include_router(underwriting_routes.router)
     app.include_router(debug_auth_routes.router)
     app.include_router(callback_spa.router)
     app.include_router(health.router)

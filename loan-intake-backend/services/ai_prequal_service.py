@@ -14,9 +14,9 @@ from core.settings import get_settings
 
 
 async def run_prequalification(payload: Dict[str, Any]) -> Dict[str, Any]:
-    settings = get_settings()
-    base_url = settings.backend_url.rstrip("/")
-    url = f"{base_url}/prequalify"
+    # Use localhost for internal backend-to-backend calls to avoid auth issues
+    # External BACKEND_URL may require authentication/CORS
+    url = "http://127.0.0.1:8000/prequalify"
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(url, json=payload)

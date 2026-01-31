@@ -6,6 +6,9 @@ import {
   Landmark,
   SlidersHorizontal,
   TestTube2,
+  Mail,
+  Bell,
+  FileCheck,
   LogOut
 } from "lucide-react";
 
@@ -15,6 +18,9 @@ import Login from "./components/Login";
 import LoanOffersView from "./components/LoanOffersView";
 import LenderDashboard from "./components/LenderDashboard";
 import LenderPreferences from "./components/LenderPreferences";
+import EmailLogAdmin from "./components/EmailLogAdmin";
+import NotificationLogAdmin from "./components/NotificationLogAdmin";
+import UnderwritingAdmin from "./components/UnderwritingAdmin";
 import { authStorage, getUserDisplayName } from "./utils/auth";
 import { authAPI } from "./services/api";
 import GlobalErrorToast from "./components/GlobalErrorToast";
@@ -48,6 +54,9 @@ function App() {
 
   const handleLenderDashboard = () => setCurrentView("lender");
   const handleLenderPreferences = () => setCurrentView("lenderPrefs");
+  const handleEmailLogs = () => setCurrentView("emailLogs");
+  const handleNotificationLogs = () => setCurrentView("notificationLogs");
+  const handleUnderwriting = () => setCurrentView("underwriting");
 
   /* ---------- Auth bootstrap ---------- */
   useEffect(() => {
@@ -214,6 +223,24 @@ function App() {
                 icon={<SlidersHorizontal size={16} />}
                 label="Preferences"
               />
+              <NavButton
+                active={currentView === "emailLogs"}
+                onClick={handleEmailLogs}
+                icon={<Mail size={16} />}
+                label="Email Logs"
+              />
+              <NavButton
+                active={currentView === "notificationLogs"}
+                onClick={handleNotificationLogs}
+                icon={<Bell size={16} />}
+                label="Notifications"
+              />
+              <NavButton
+                active={currentView === "underwriting"}
+                onClick={handleUnderwriting}
+                icon={<FileCheck size={16} />}
+                label="Underwriting"
+              />
               {/* <NavButton
                 active={currentView === "test"}
                 onClick={handleTestRoute}
@@ -262,6 +289,12 @@ function App() {
           <LenderDashboard />
         ) : currentView === "lenderPrefs" ? (
           <LenderPreferences />
+        ) : currentView === "emailLogs" ? (
+          <EmailLogAdmin />
+        ) : currentView === "notificationLogs" ? (
+          <NotificationLogAdmin />
+        ) : currentView === "underwriting" ? (
+          <UnderwritingAdmin />
         ) : currentView === "oneClick" ? (
           <OneClickSubmissionProvider>
             <OneClickSubmissionWizard

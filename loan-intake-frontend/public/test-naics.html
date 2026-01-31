@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NAICS Lookup Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; font-size: 16px; }
+        #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>NAICS Lookup Test</h1>
+    
+    <div>
+        <input type="text" id="keyword" placeholder="Enter keyword (e.g., dairy, cattle)" value="dairy" />
+        <button onclick="testLookup()">Test Lookup</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        async function testLookup() {
+            const keyword = document.getElementById('keyword').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = '<p>Testing NAICS lookup...</p>';
+            
+            try {
+                // Test 1: Using proxy (relative URL)
+                console.log('Test 1: Using proxy - /lookup/naics');
+                const response1 = await fetch(`/lookup/naics?keyword=${encodeURIComponent(keyword)}`);
+                const data1 = await response1.json();
+                console.log('Response 1:', data1);
+                
+                resultDiv.innerHTML = `
+                    <h3 class="success">✓ Success!</h3>
+                    <p><strong>Method:</strong> Proxy (relative URL)</p>
+                    <p><strong>URL:</strong> /lookup/naics?keyword=${keyword}</p>
+                    <p><strong>Found:</strong> ${data1.found}</p>
+                    <p><strong>NAICS Code:</strong> ${data1.naics_code || 'N/A'}</p>
+                    <p><strong>Description:</strong> ${data1.description || 'N/A'}</p>
+                    <p><strong>Sector:</strong> ${data1.sector || 'N/A'}</p>
+                    <pre>${JSON.stringify(data1, null, 2)}</pre>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <h3 class="error">✗ Error</h3>
+                    <p>${error.message}</p>
+                    <p>Check console for details</p>
+                `;
+                
+                // Try direct connection
+                try {
+                    console.log('Test 2: Direct connection - http://localhost:8000/lookup/naics');
+                    const response2 = await fetch(`http://localhost:8000/lookup/naics?keyword=${encodeURIComponent(keyword)}`);
+                    const data2 = await response2.json();
+                    console.log('Response 2 (direct):', data2);
+                    
+                    resultDiv.innerHTML += `
+                        <hr/>
+                        <h3 class="success">✓ Direct Connection Works!</h3>
+                        <p><strong>Method:</strong> Direct to localhost:8000</p>
+                        <p><strong>NAICS Code:</strong> ${data2.naics_code}</p>
+                        <p><strong>Description:</strong> ${data2.description}</p>
+                    `;
+                } catch (error2) {
+                    console.error('Direct connection also failed:', error2);
+                }
+            }
+        }
+        
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(testLookup, 500);
+        });
+    </script>
+</body>
+</html>

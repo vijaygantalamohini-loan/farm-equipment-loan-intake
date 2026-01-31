@@ -649,6 +649,164 @@ export const ocrAPI = {
   },
 };
 
+/**
+ * Email API
+ * @typedef {{to: string, subject: string, template: string, data: Record<string, any>}} SendEmailPayload
+ * @typedef {{items: Array<any>, page: number, pageSize: number, total: number, totalPages: number}} EmailLogPage
+ */
+export const emailAPI = {
+  /**
+   * Send an email (enqueue)
+   * @param {SendEmailPayload} payload
+   */
+  async sendEmail(payload) {
+    const adminToken = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('admin_token')
+      : null;
+    return apiRequest('/email/send', {
+      method: 'POST',
+      headers: adminToken ? { 'X-Admin-Token': adminToken } : undefined,
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Get email logs (paginated)
+   */
+  async getEmailLogs({ page = 1, pageSize = 25 } = {}) {
+    const adminToken = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('admin_token')
+      : null;
+    return apiRequest(`/email/logs?page=${page}&page_size=${pageSize}`, {
+      headers: adminToken ? { 'X-Admin-Token': adminToken } : undefined,
+    });
+  },
+};
+
+/**
+ * Notification API
+ * @typedef {{channel: string, recipientId: string, title?: string, message: string, data?: Record<string, any>, phoneNumber?: string}} SendNotificationPayload
+ */
+export const notificationAPI = {
+  /**
+   * Send a notification (enqueue)
+   * @param {SendNotificationPayload} payload
+   */
+  async sendNotification(payload) {
+    return apiRequest('/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Get notification logs (paginated, admin only)
+   */
+  async getNotificationLogs({ page = 1, pageSize = 25 } = {}) {
+    const adminToken = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('admin_token')
+      : null;
+    return apiRequest(`/notifications/logs?page=${page}&page_size=${pageSize}`, {
+      headers: adminToken ? { 'X-Admin-Token': adminToken } : undefined,
+    });
+  },
+
+  /**
+   * Get notifications for a specific recipient
+   */
+  async getRecipientNotifications(recipientId, { page = 1, pageSize = 25 } = {}) {
+    return apiRequest(`/notifications/recipient/${recipientId}?page=${page}&page_size=${pageSize}`);
+  },
+};
+
+/**
+ * Underwriting API
+ * @typedef {{applicationId: string, lenderId: string, borrowerData: object, loanData: object, collateralData?: object}} CreateUnderwritingPayload
+ * @typedef {{status: string, notes?: string, decision?: object}} UpdateStatusPayload
+ */
+export const underwritingAPI = {
+  /**
+   * Create an underwriting request
+   * @param {CreateUnderwritingPayload} payload
+   */
+  async createRequest(payload) {
+    return apiRequest('/underwriting/requests', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Get underwriting request by ID
+   */
+  async getById(requestId) {
+    return apiRequest(`/underwriting/requests/${requestId}`);
+  },
+
+  /**
+   * Get underwriting request by application ID
+   */
+  async getByApplicationId(applicationId) {
+    return apiRequest(`/underwriting/by-application/${applicationId}`);
+  },
+
+  /**
+   * Update underwriting status
+   * @param {string} requestId
+   * @param {UpdateStatusPayload} payload
+   */
+  async updateStatus(requestId, payload) {
+    return apiRequest(`/underwriting/requests/${requestId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Add a note to underwriting request
+   */
+  async addNote(requestId, note, performedBy = null) {
+    return apiRequest(`/underwriting/requests/${requestId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ note, performedBy }),
+    });
+  },
+
+  /**
+   * Get all underwriting requests (paginated, admin only)
+   */
+  async getAllRequests({ page = 1, pageSize = 25 } = {}) {
+    const adminToken = (typeof window !== 'undefined' && window.localStorage)
+      ? window.localStorage.getItem('admin_token')
+      : null;
+    return apiRequest(`/underwriting/requests?page=${page}&page_size=${pageSize}`, {
+      headers: adminToken ? { 'X-Admin-Token': adminToken } : undefined,
+    });
+  },
+
+  /**
+   * Get underwriting requests by lender
+   */
+  async getByLender(lenderId, { page = 1, pageSize = 25 } = {}) {
+    return apiRequest(`/underwriting/by-lender/${lenderId}?page=${page}&page_size=${pageSize}`);
+  },
+
+  /**
+   * Get underwriting requests by status
+   */
+  async getByStatus(status, { page = 1, pageSize = 25 } = {}) {
+    return apiRequest(`/underwriting/by-status/${status}?page=${page}&page_size=${pageSize}`);
+  },
+
+  /**
+   * Get activities for an underwriting request
+   */
+  async getActivities(requestId) {
+    return apiRequest(`/underwriting/requests/${requestId}/activities`);
+  },
+};
+
+
 // Export APIError for error handling
 export { APIError };
 export const API_BASE = API_BASE_URL;

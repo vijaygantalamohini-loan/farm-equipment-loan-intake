@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import AssetForm from "./AssetForm";
 import TradeInSection from "./TradeInSection";
-import LoanCalculator from "./LoanCalculator";
 import { prequalificationAPI, equipmentIntelligenceAPI } from "../services/api";
 import { formatCurrency } from "../utils/format";
 import { Plus, AlertCircle, TrendingUp, AlertTriangle } from "lucide-react";
@@ -313,13 +312,15 @@ function LoanRequestStep({
 
     const equipment_list = sanitizedEquipmentList;
     const termMonths = parseInt(loan.termMonths, 10);
+    // Use borrower NAICS code (from Step 1) or loan NAICS code as fallback
+    const naicsCode = initialData?.borrower?.naicsCode || loan.naicsCode || "";
     return {
       loan_amount: calculatedLoanAmount,
       equipment_list,
       borrower_income: borrowerIncome,
       credit_score: normalizedCreditScore,
       down_payment: parseFloat(loan.cashDown) || 0,
-      naics_code: loan.naicsCode || "",
+      naics_code: naicsCode,
       state: dealerState,
       trade_in_present: !!loan.hasTradeIn,
       loan_term_months: Number.isFinite(termMonths) ? Math.max(12, termMonths) : 60,
@@ -342,7 +343,6 @@ function LoanRequestStep({
       totalEquipmentValue > 0 &&
       calculatedLoanAmount > 0 &&
       borrowerIncome > 0 &&
-      Boolean(loan.naicsCode) &&
       Boolean(dealerState) &&
       sanitizedEquipmentList.length > 0;
 
@@ -629,16 +629,6 @@ function LoanRequestStep({
           </p>
         </div>
       </div>
-
-      {/* Loan Calculator */}
-      <LoanCalculator
-        purchaseAssets={loan.purchaseAssets}
-        tradeIns={loan.tradeIns}
-        cashDown={loan.cashDown}
-        purpose={loan.purpose}
-        onPurposeChange={(value) => handleChange("purpose", value)}
-        onNaicsChange={(naics) => handleChange("naicsCode", naics)}
-      />
 
       <div className="mt-8 p-6 rounded-lg border border-gray-500 bg-white shadow-sm">
         <h3 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">

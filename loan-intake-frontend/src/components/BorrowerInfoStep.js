@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { autoValidateAddress, createAddressChangeHandler, fetchAddressSuggestions } from "../utils/addressUtils";
-import { addressAPI, API_BASE } from "../services/api";
+import { addressAPI, API_BASE, lookupAPI } from "../services/api";
 import { Upload, ChevronDown, AlertCircle, CheckCircle, Search } from "lucide-react";
 
 const OTHER_OPTION_VALUE = "__other__";
@@ -257,9 +257,9 @@ function BorrowerInfoStep({
   const filteredOperationPurposes = useMemo(() => {
     const keyword = (borrower.operationPurpose || "").toLowerCase();
     if (!keyword) {
-      return COMMON_OPERATION_PURPOSES.slice(0, 6);
+      return COMMON_OPERATION_PURPOSES.slice(0, 8);
     }
-    return COMMON_OPERATION_PURPOSES.filter(p => p.toLowerCase().includes(keyword)).slice(0, 6);
+    return COMMON_OPERATION_PURPOSES.filter(p => p.toLowerCase().includes(keyword)).slice(0, 8);
   }, [borrower.operationPurpose]);
   const naicsDisplayValue = operationNaicsDetails
     ? operationNaicsDetails.description
@@ -269,6 +269,13 @@ function BorrowerInfoStep({
   const naicsTitle = operationNaicsDetails && operationNaicsDetails.description
     ? `${operationNaicsDetails.naics_code} - ${operationNaicsDetails.description}${operationNaicsDetails.sector ? ` (${operationNaicsDetails.sector})` : ""}`
     : "";
+
+  // DEBUG: Monitor NAICS display values
+  useEffect(() => {
+    console.log('[DEBUG NAICS] operationNaicsDetails:', operationNaicsDetails);
+    console.log('[DEBUG NAICS] borrower.naicsCode:', borrower.naicsCode);
+    console.log('[DEBUG NAICS] naicsDisplayValue:', naicsDisplayValue);
+  }, [operationNaicsDetails, borrower.naicsCode, naicsDisplayValue]);
 
   // Sync local state when initialData changes (e.g., on resume)
   useEffect(() => {
@@ -361,11 +368,13 @@ function BorrowerInfoStep({
     hasMountedRef.current = true;
   }, []);
 
-  // NAICS lookup when operation purpose changes (simplified working version)
+  // NAICS lookup when operation purpose changes
   useEffect(() => {
     const purpose = (borrower.operationPurpose || "").trim();
+    console.log('[4] NAICS useEffect fired! borrower.operationPurpose:', borrower.operationPurpose, 'trimmed:', purpose);
     
     if (!purpose || purpose.length < 3) {
+      console.log('[5] Purpose too short, skipping lookup');
       setOperationNaicsDetails(null);
       setNaicsLookupLoading(false);
       return;
@@ -377,17 +386,26 @@ function BorrowerInfoStep({
     }
 
     // Debounce NAICS lookup
+    console.log('[6] Setting 800ms timeout for NAICS lookup');
     operationPurposeTimeoutRef.current = setTimeout(async () => {
+      console.log('[7] Timeout fired! Fetching NAICS for:', purpose);
       setNaicsLookupLoading(true);
       try {
         const url = API_BASE ? `${API_BASE}/lookup/naics?keyword=${encodeURIComponent(purpose)}` : `/lookup/naics?keyword=${encodeURIComponent(purpose)}`;
+        console.log('[8] API_BASE:', API_BASE);
+        console.log('[8] Fetching URL:', url);
         const response = await fetch(url);
+        console.log('[8.5] Response status:', response.status, response.ok);
         const data = await response.json();
+        console.log('[9] API response:', data);
         
         if (data?.found) {
+          console.log('[10] Setting NAICS code:', data.naics_code);
           setOperationNaicsDetails(data);
           handleChange("naicsCode", data.naics_code, buildLoanNaicsMeta(data.naics_code));
+          console.log('[11] NAICS code set via handleChange');
         } else {
+          console.log('[12] NAICS not found in response');
           setOperationNaicsDetails(null);
           handleChange("naicsCode", "", buildLoanNaicsMeta(""));
         }
@@ -467,14 +485,18 @@ function BorrowerInfoStep({
   };
 
   const handleChange = (field, value, meta) => {
+    console.log(`[handleChange] field: ${field}, value: ${value}, meta:`, meta);
     setBorrower(prev => {
+      console.log(`[handleChange] prev[${field}]:`, prev[field], 'new value:', value, 'equal?', prev[field] === value);
       if (prev[field] === value) {
+        console.log(`[handleChange] Value unchanged, returning prev`);
         if (meta) {
           emitBorrowerDraft(prev, meta);
         }
         return prev;
       }
       const updated = { ...prev, [field]: value };
+      console.log(`[handleChange] Updated borrower:`, updated);
       emitBorrowerDraft(updated, meta);
       return updated;
     });
@@ -504,12 +526,15 @@ function BorrowerInfoStep({
 
   const handleOperationPurposeInput = (rawValue) => {
     const nextValue = rawValue || "";
+    console.log('[1] handleOperationPurposeInput called with:', nextValue);
     if (suggestionHideTimeoutRef.current) {
       clearTimeout(suggestionHideTimeoutRef.current);
       suggestionHideTimeoutRef.current = null;
     }
     setShowOperationPurposeSuggestions(true);
+    console.log('[2] About to call handleChange with operationPurpose:', nextValue);
     handleChange("operationPurpose", nextValue);
+    console.log('[3] handleChange called');
   };
 
   const handleAddressChange = createAddressChangeHandler(setBorrower);
@@ -1029,12 +1054,12 @@ function BorrowerInfoStep({
                     suggestionHideTimeoutRef.current = setTimeout(() => {
                       setShowOperationPurposeSuggestions(false);
                       suggestionHideTimeoutRef.current = null;
-                    }, 120);
+                    }, 250);
                   }}
                   required
                   className="w-full px-3 py-2 border-2 border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                 />
-                {showOperationPurposeSuggestions && (borrower.operationPurpose || "").trim().length > 0 && (
+                {showOperationPurposeSuggestions && filteredOperationPurposes.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-gray-500 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                     {filteredOperationPurposes.map((suggestion, idx) => (
                       <button
@@ -1076,6 +1101,7 @@ function BorrowerInfoStep({
               <div>
                 <label className="block text-sm font-semibold text-black mb-2">
                   NAICS Code <span className="font-normal text-xs text-gray-600">(auto-detected)</span>
+                  {naicsLookupLoading && <span className="ml-2 text-blue-600 text-xs">🔄 Looking up...</span>}
                 </label>
                 <input
                   type="text"
@@ -1083,7 +1109,7 @@ function BorrowerInfoStep({
                   placeholder={naicsLookupLoading ? "Looking up..." : "Enter purpose to auto-detect"}
                   readOnly
                   title={naicsTitle}
-                  className="w-full px-3 py-2 bg-gray-100 border-2 border-gray-500 rounded-lg text-gray-600 cursor-not-allowed"
+                  className={`w-full px-3 py-2 border-2 border-gray-500 rounded-lg cursor-not-allowed ${naicsLookupLoading ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
                 />
               </div>
             </div>
